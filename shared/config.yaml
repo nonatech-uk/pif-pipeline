@@ -1,0 +1,34 @@
+# Pipeline configuration — non-secret values.
+# Secrets (API keys, passwords) come from environment variables.
+
+paths:
+  drop_folder: data/drop
+  data_dir: data
+  pets_dir: shared/pets
+  audit_log: data/audit.jsonl
+  exceptions_db: data/exceptions.db
+  corrections_db: data/corrections.db
+
+api_keys:
+  # All loaded from env vars: ANTHROPIC_API_KEY, IMMICH_API_KEY, etc.
+  anthropic: ${ANTHROPIC_API_KEY}
+  immich: ${IMMICH_API_KEY}
+  paperless: ${PAPERLESS_API_KEY}
+
+services:
+  immich_url: http://127.0.0.1:2283
+  paperless_url: http://paperless:8000
+  finance_url: http://127.0.0.1:8000
+  imap_host: mail.mees.st
+  imap_port: 993
+  imap_user: ${IMAP_USER}
+  imap_password: ${IMAP_PASSWORD}
+
+classifier:
+  clip_threshold_default: 0.75
+  llm_threshold_default: 0.70
+  claude_threshold_default: 0.80
+
+tiers:
+  # Maximum tier to use: deterministic, clip, llm, claude
+  ceiling: claude

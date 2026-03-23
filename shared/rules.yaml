@@ -1,0 +1,16 @@
+# Pipeline rules — evaluated in priority order (ascending).
+#
+# Rule schema:
+#   id: str               — unique identifier
+#   name: str             — human-readable name
+#   priority: int         — lower = evaluated first
+#   conditions: list      — all must match (AND logic)
+#     - type: str         — condition type (classification, gps_proximity, media_type, etc.)
+#       <type-specific fields>
+#   actions: list         — handlers to fire on match
+#     - handler: str      — registered action handler name
+#       params: dict      — handler-specific parameters (supports Jinja2 templates)
+#   on_match: stop|continue  — stop = no further rules; continue = keep evaluating
+#   enabled: bool         — false to disable without deleting
+
+rules: []

@@ -1,0 +1,24 @@
+# CLIP zero-shot classification labels with per-label confidence thresholds.
+# The classifier returns the top label only if its score >= threshold.
+
+labels:
+  receipt:
+    threshold: 0.75
+  invoice:
+    threshold: 0.75
+  boarding_pass:
+    threshold: 0.75
+  wine_label:
+    threshold: 0.75
+  bank_statement:
+    threshold: 0.75
+  insurance_policy:
+    threshold: 0.75
+  tax_document:
+    threshold: 0.75
+  pet_photo:
+    threshold: 0.70
+  landscape:
+    threshold: 0.70
+  document:
+    threshold: 0.75
