@@ -21,8 +21,8 @@ services:
   finance_url: http://127.0.0.1:8000
   imap_host: mail.mees.st
   imap_port: 993
-  imap_user: ${IMAP_USER}
-  imap_password: ${IMAP_PASSWORD}
+  imap_user: "${IMAP_USER}"
+  imap_password: "${IMAP_PASSWORD}"
 
 classifier:
   clip_threshold_default: 0.75

@@ -18,10 +18,14 @@ def _project_root() -> Path:
 
 def _load_yaml(path: Path) -> dict[str, Any]:
     """Load a YAML file and expand ${ENV_VAR} references."""
+    import re
+
     text = path.read_text()
-    # Expand ${VAR} patterns with env vars
-    for key, value in os.environ.items():
-        text = text.replace(f"${{{key}}}", value)
+
+    def _replace(match: re.Match) -> str:
+        return os.environ.get(match.group(1), "")
+
+    text = re.sub(r"\$\{(\w+)\}", _replace, text)
     return yaml.safe_load(text) or {}
 
 
