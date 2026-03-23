@@ -13,4 +13,171 @@
 #   on_match: stop|continue  — stop = no further rules; continue = keep evaluating
 #   enabled: bool         — false to disable without deleting
 
-rules: []
+rules:
+  # --- Priority 10: High-value documents (stop after match) ---
+  - id: p10-boarding-pass
+    name: Boarding pass → Paperless + Location
+    priority: 10
+    conditions:
+      - type: classification
+        label: boarding_pass
+        min_confidence: 0.7
+    actions:
+      - handler: paperless
+        params:
+          document_type: Boarding Pass
+          title: "{{ extracted.airline }} {{ extracted.flight_number }} {{ extracted.date }}"
+      - handler: location
+        params:
+          event_type: flight
+    on_match: stop
+
+  - id: p10-invoice
+    name: Invoice → Paperless + Finance
+    priority: 10
+    conditions:
+      - type: classification
+        label: invoice
+        min_confidence: 0.7
+    actions:
+      - handler: paperless
+        params:
+          document_type: Invoice
+          title: "{{ extracted.vendor }} invoice {{ extracted.date }}"
+      - handler: finance
+        params:
+          source: pipeline
+    on_match: stop
+
+  - id: p10-receipt
+    name: Receipt → Paperless + Finance
+    priority: 10
+    conditions:
+      - type: classification
+        label: receipt
+        min_confidence: 0.7
+    actions:
+      - handler: paperless
+        params:
+          document_type: Receipt
+          title: "{{ extracted.merchant }} {{ extracted.date }}"
+      - handler: finance
+        params:
+          source: pipeline
+    on_match: stop
+
+  # --- Priority 20: Financial documents (stop) ---
+  - id: p20-bank-statement
+    name: Bank statement → Paperless
+    priority: 20
+    conditions:
+      - type: classification
+        label: bank_statement
+        min_confidence: 0.7
+    actions:
+      - handler: paperless
+        params:
+          document_type: Bank Statement
+          title: "{{ extracted.bank }} statement {{ extracted.period_from }}"
+    on_match: stop
+
+  - id: p20-insurance
+    name: Insurance policy → Paperless
+    priority: 20
+    conditions:
+      - type: classification
+        label: insurance_policy
+        min_confidence: 0.7
+    actions:
+      - handler: paperless
+        params:
+          document_type: Insurance Policy
+          title: "{{ extracted.insurer }} {{ extracted.policy_type }}"
+    on_match: stop
+
+  - id: p20-tax
+    name: Tax document → Paperless
+    priority: 20
+    conditions:
+      - type: classification
+        label: tax_document
+        min_confidence: 0.7
+    actions:
+      - handler: paperless
+        params:
+          document_type: Tax Document
+          title: "{{ extracted.document_type }} {{ extracted.tax_year }}"
+    on_match: stop
+
+  # --- Priority 30: Wine (stop) ---
+  - id: p30-wine
+    name: Wine label → Paperless
+    priority: 30
+    conditions:
+      - type: classification
+        label: wine_label
+        min_confidence: 0.7
+    actions:
+      - handler: paperless
+        params:
+          document_type: Wine Label
+          title: "{{ extracted.wine_name }} {{ extracted.vintage }}"
+    on_match: stop
+
+  # --- Priority 50: Geo-tagged photos (continue — pet rules may also fire) ---
+  - id: p50-geo-photo
+    name: Geo-tagged photo → Immich album by location
+    priority: 50
+    conditions:
+      - type: classification
+        label: [geo_tagged, landscape]
+    actions:
+      - handler: immich_album
+        params:
+          album_name: "{{ exif.year }} Locations"
+      - handler: immich_tag
+        params:
+          tags: [geo]
+    on_match: continue
+
+  # --- Priority 60: Pet photos (continue — accumulates with geo) ---
+  - id: p60-pet-nona
+    name: "Nona photo \u2192 Immich tag"
+    priority: 60
+    conditions:
+      - type: pet_recognition
+        pet: nona
+        min_confidence: 0.7
+    actions:
+      - handler: immich_tag
+        params:
+          tags: [nona, cat]
+          people: [Nona]
+    on_match: continue
+
+  - id: p60-pet-og
+    name: "Og photo \u2192 Immich tag"
+    priority: 60
+    conditions:
+      - type: pet_recognition
+        pet: og
+        min_confidence: 0.7
+    actions:
+      - handler: immich_tag
+        params:
+          tags: [og, cat]
+          people: [Og]
+    on_match: continue
+
+  # --- Priority 90: Duplicates (stop) ---
+  - id: p90-duplicate
+    name: Duplicate → discard
+    priority: 90
+    conditions:
+      - type: classification
+        label: duplicate
+    actions:
+      - handler: notify
+        params:
+          message: "Duplicate detected: {{ file.name }}"
+    on_match: stop
