@@ -66,3 +66,23 @@ export interface DecisionDetail extends DecisionItem {
     actions: ActionTrace[]
   }
 }
+
+export interface RuleCondition {
+  type: string
+  [key: string]: unknown
+}
+
+export interface RuleAction {
+  handler: string
+  params: Record<string, unknown>
+}
+
+export interface Rule {
+  id: string
+  name: string
+  priority: number
+  conditions: RuleCondition[]
+  actions: RuleAction[]
+  on_match: 'stop' | 'continue'
+  enabled: boolean
+}

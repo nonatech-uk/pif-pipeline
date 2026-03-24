@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 from typing import Any
 
 from pipeline.actions.base import ActionHandler
@@ -18,8 +17,8 @@ class ExceptionQueueHandler(ActionHandler):
 
     name = "exception_queue"
 
-    def __init__(self, db_path: Path) -> None:
-        self._queue = ExceptionQueue(db_path)
+    def __init__(self) -> None:
+        self._queue = ExceptionQueue()
 
     async def execute(self, envelope: Envelope, params: dict[str, Any]) -> ActionResult:
         reason = params.get("reason", "No rules matched")
@@ -29,7 +28,6 @@ class ExceptionQueueHandler(ActionHandler):
         if envelope.classification:
             classification_output = envelope.classification.model_dump()
 
-        # Serialize envelope without raw_bytes (too large for SQLite)
         envelope_dict = envelope.model_dump(exclude={"raw_bytes"})
 
         item = ExceptionItem(

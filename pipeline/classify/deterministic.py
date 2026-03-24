@@ -34,7 +34,7 @@ class DeterministicClassifier(Classifier):
     async def classify(self, envelope: Envelope) -> ClassifyResult | None:
         # 1. Duplicate check via SHA256
         if self._audit_log and envelope.file_sha256:
-            existing = self._audit_log.get_by_sha256(envelope.file_sha256)
+            existing = await self._audit_log.get_by_sha256(envelope.file_sha256)
             if existing:
                 log.info("Duplicate detected: sha256=%s", envelope.file_sha256[:12])
                 return ClassifyResult(

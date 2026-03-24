@@ -33,9 +33,6 @@ class PathsConfig(BaseSettings):
     drop_folder: str = "data/drop"
     data_dir: str = "data"
     pets_dir: str = "shared/pets"
-    audit_log: str = "data/audit.jsonl"
-    exceptions_db: str = "data/exceptions.db"
-    corrections_db: str = "data/corrections.db"
 
 
 class ServicesConfig(BaseSettings):

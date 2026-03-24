@@ -114,7 +114,7 @@ def _parse_rule(entry: dict) -> Rule:
     actions = []
     for a in entry.get("actions", []):
         handler = a.get("handler", "")
-        params = {k: v for k, v in a.items() if k != "handler"}
+        params = a.get("params", {k: v for k, v in a.items() if k != "handler"})
         actions.append(ActionSpec(handler=handler, params=params))
 
     return Rule(

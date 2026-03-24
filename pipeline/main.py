@@ -16,6 +16,7 @@ from pipeline.audit.log import AuditLog
 from pipeline.audit.models import ActionTrace, AuditEntry, DecisionTrace
 from pipeline.classify.tier_runner import TierRunner
 from pipeline.config import load_settings, Settings
+from pipeline.db import init_pool, close_pool
 from pipeline.exceptions.queue import ExceptionItem, ExceptionQueue
 from pipeline.ingest.email import EmailWatcher
 from pipeline.ingest.immich import ImmichWatcher, router as immich_router
@@ -176,9 +177,15 @@ async def main() -> None:
     log.info("Pipeline starting — project root: %s", settings.project_root)
     log.info("Tier ceiling: %s", settings.tiers.ceiling)
 
+    # Initialise database pool
+    database_url = os.environ.get("DATABASE_URL", "")
+    if not database_url:
+        raise RuntimeError("DATABASE_URL environment variable is required")
+    await init_pool(database_url)
+
     # Initialise core components
-    _audit_log = AuditLog(settings.resolve_path(settings.paths.audit_log))
-    _exception_queue = ExceptionQueue(settings.resolve_path(settings.paths.exceptions_db))
+    _audit_log = AuditLog()
+    _exception_queue = ExceptionQueue()
     _tier_runner = TierRunner(settings, _audit_log)
 
     rules_loader = RulesLoader(settings.project_root / "shared" / "rules.yaml")
@@ -186,7 +193,7 @@ async def main() -> None:
 
     # Corrections table
     from pipeline.feedback.corrections import CorrectionsTable
-    corrections = CorrectionsTable(settings.resolve_path(settings.paths.corrections_db))
+    corrections = CorrectionsTable()
 
     # Share instances with dashboard API
     from pipeline.api import deps as api_deps
@@ -194,6 +201,7 @@ async def main() -> None:
     api_deps._audit_log = _audit_log
     api_deps._exception_queue = _exception_queue
     api_deps._corrections = corrections
+    api_deps._rules_loader = rules_loader
 
     # Retrospective runner
     from pipeline.retrospective.runner import RetrospectiveRunner
@@ -260,6 +268,8 @@ async def main() -> None:
         await asyncio.gather(*tasks)
     except asyncio.CancelledError:
         pass
+    finally:
+        await close_pool()
 
 
 if __name__ == "__main__":

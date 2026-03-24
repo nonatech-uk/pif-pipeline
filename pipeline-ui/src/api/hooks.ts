@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiFetch } from './client'
-import type { PipelineStatus, ExceptionItem, DecisionItem, DecisionDetail } from './types'
+import type { PipelineStatus, ExceptionItem, DecisionItem, DecisionDetail, Rule } from './types'
 
 const POLL_MS = 10_000
 
@@ -33,6 +33,63 @@ export function useDecisionDetail(itemId: string | null) {
     queryKey: ['decision', itemId],
     queryFn: () => apiFetch(`/decisions/${itemId}`),
     enabled: !!itemId,
+  })
+}
+
+export function useRules() {
+  return useQuery<{ items: Rule[]; total: number }>({
+    queryKey: ['rules'],
+    queryFn: () => apiFetch('/rules'),
+  })
+}
+
+export function useCreateRule() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (rule: Rule) => apiFetch('/rules', {
+      method: 'POST',
+      body: JSON.stringify({
+        ...rule,
+        conditions: rule.conditions.map(c => {
+          const { type, ...params } = c
+          return { type, params }
+        }),
+      }),
+    }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['rules'] }),
+  })
+}
+
+export function useUpdateRule() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, rule }: { id: string; rule: Rule }) => apiFetch(`/rules/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        ...rule,
+        conditions: rule.conditions.map(c => {
+          const { type, ...params } = c
+          return { type, params }
+        }),
+      }),
+    }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['rules'] }),
+  })
+}
+
+export function useDeleteRule() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => apiFetch(`/rules/${id}`, { method: 'DELETE' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['rules'] }),
+  })
+}
+
+export function useToggleRule() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => apiFetch(`/rules/${id}/toggle`, { method: 'POST' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['rules'] }),
   })
 }
 

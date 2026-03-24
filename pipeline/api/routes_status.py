@@ -17,12 +17,12 @@ async def pipeline_status():
     audit = get_audit_log()
     queue = get_exception_queue()
 
-    today = audit.count_today()
-    last = audit.last_timestamp()
+    today = await audit.count_today()
+    last = await audit.last_timestamp()
     exceptions_pending = await queue.count("pending")
 
     # Count auto-filed (not exception-queued) today
-    entries = audit.recent(200)
+    entries = await audit.recent(200)
     auto_filed_today = sum(
         1 for e in entries
         if e.timestamp.date() == date.today() and not e.exception_queued

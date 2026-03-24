@@ -62,7 +62,5 @@ def register_all(settings: Settings) -> None:
         log.warning("IMMICH_API_KEY not set — immich handlers disabled")
 
     register(LocationHandler())
-    register(ExceptionQueueHandler(
-        db_path=settings.resolve_path(settings.paths.exceptions_db),
-    ))
+    register(ExceptionQueueHandler())
     register(NotifyHandler())

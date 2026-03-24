@@ -13,7 +13,7 @@ router = APIRouter()
 async def list_decisions(source: str = "all", limit: int = 50):
     """List recent decisions from the audit log."""
     audit = get_audit_log()
-    entries = audit.recent(limit=limit)
+    entries = await audit.recent(limit=limit)
 
     if source != "all":
         entries = [e for e in entries if e.source_type == source]
@@ -44,7 +44,7 @@ async def list_decisions(source: str = "all", limit: int = 50):
 async def get_decision(item_id: str):
     """Get full decision trace for an item."""
     audit = get_audit_log()
-    entry = audit.get_decision_trace(item_id)
+    entry = await audit.get_decision_trace(item_id)
     if not entry:
         raise HTTPException(404, "Decision not found")
 

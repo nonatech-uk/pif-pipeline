@@ -74,7 +74,7 @@ async def paperless_webhook(
         return {"ok": True, "error": "Could not fetch document"}
 
     # Find original classification in audit log by Paperless ref
-    original_entry = _find_audit_entry(str(doc_id), updated.get("title", ""))
+    original_entry = await _find_audit_entry(str(doc_id), updated.get("title", ""))
     if not original_entry:
         log.info("No audit entry found for Paperless doc %s — may not be pipeline-originated", doc_id)
         return {"ok": True, "ignored": True, "reason": "No matching audit entry"}
@@ -154,12 +154,12 @@ async def _resolve_name(client: httpx.AsyncClient, endpoint: str, pk: int | None
     return str(pk)
 
 
-def _find_audit_entry(paperless_ref: str, title: str) -> Any:
+async def _find_audit_entry(paperless_ref: str, title: str) -> Any:
     """Find the audit entry that produced this Paperless document."""
     if not _audit_log:
         return None
 
-    entries = _audit_log.recent(500)
+    entries = await _audit_log.recent(500)
     for entry in entries:
         # Match by Paperless task ref in action traces
         for action in entry.trace.actions:

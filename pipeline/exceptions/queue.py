@@ -1,14 +1,14 @@
-"""SQLite-backed exception queue for items that couldn't be automatically processed."""
+"""PostgreSQL-backed exception queue for items that couldn't be automatically processed."""
 
 from __future__ import annotations
 
 import json
 from datetime import datetime, UTC
-from pathlib import Path
 from typing import Any
 
-import aiosqlite
 from pydantic import BaseModel, Field
+
+from pipeline.db import get_pool
 
 
 class ExceptionItem(BaseModel):
@@ -27,95 +27,64 @@ class ExceptionItem(BaseModel):
     triaged_at: datetime | None = None
 
 
-_SCHEMA = """
-CREATE TABLE IF NOT EXISTS exceptions (
-    item_id TEXT PRIMARY KEY,
-    reason TEXT NOT NULL,
-    review_priority INTEGER NOT NULL DEFAULT 50,
-    classification_output TEXT NOT NULL DEFAULT '{}',
-    envelope_json TEXT NOT NULL DEFAULT '{}',
-    created_at TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'pending',
-    triage_action TEXT,
-    triage_destination TEXT,
-    triage_reason TEXT,
-    triaged_at TEXT
-);
-CREATE INDEX IF NOT EXISTS idx_exceptions_status ON exceptions(status);
-CREATE INDEX IF NOT EXISTS idx_exceptions_priority ON exceptions(review_priority);
-"""
-
-
 class ExceptionQueue:
-    """SQLite-backed queue for pipeline exceptions."""
-
-    def __init__(self, db_path: Path) -> None:
-        self._db_path = db_path
-        self._db_path.parent.mkdir(parents=True, exist_ok=True)
-
-    async def _get_db(self) -> aiosqlite.Connection:
-        db = await aiosqlite.connect(self._db_path)
-        await db.executescript(_SCHEMA)
-        return db
+    """PostgreSQL-backed queue for pipeline exceptions."""
 
     async def add(self, item: ExceptionItem) -> None:
         """Add an item to the exception queue."""
-        db = await self._get_db()
-        try:
-            await db.execute(
-                """INSERT OR REPLACE INTO exceptions
-                   (item_id, reason, review_priority, classification_output,
-                    envelope_json, created_at, status)
-                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                (
-                    item.item_id,
-                    item.reason,
-                    item.review_priority,
-                    json.dumps(item.classification_output),
-                    json.dumps(item.envelope_json),
-                    item.created_at.isoformat(),
-                    item.status,
-                ),
-            )
-            await db.commit()
-        finally:
-            await db.close()
+        pool = get_pool()
+        await pool.execute(
+            """INSERT INTO exceptions
+               (item_id, reason, review_priority, classification_output,
+                envelope_json, created_at, status)
+               VALUES ($1, $2, $3, $4, $5, $6, $7)
+               ON CONFLICT (item_id) DO UPDATE SET
+                 reason = EXCLUDED.reason,
+                 review_priority = EXCLUDED.review_priority,
+                 classification_output = EXCLUDED.classification_output,
+                 envelope_json = EXCLUDED.envelope_json,
+                 created_at = EXCLUDED.created_at,
+                 status = EXCLUDED.status""",
+            item.item_id,
+            item.reason,
+            item.review_priority,
+            json.dumps(item.classification_output),
+            json.dumps(item.envelope_json),
+            item.created_at,
+            item.status,
+        )
 
     async def list(
         self, status: str = "pending", limit: int = 50
     ) -> list[ExceptionItem]:
         """List exception items, ordered by priority (urgent first)."""
-        db = await self._get_db()
-        try:
-            cursor = await db.execute(
-                """SELECT item_id, reason, review_priority, classification_output,
-                          envelope_json, created_at, status,
-                          triage_action, triage_destination, triage_reason, triaged_at
-                   FROM exceptions
-                   WHERE status = ?
-                   ORDER BY review_priority ASC, created_at DESC
-                   LIMIT ?""",
-                (status, limit),
+        pool = get_pool()
+        rows = await pool.fetch(
+            """SELECT item_id, reason, review_priority, classification_output,
+                      envelope_json, created_at, status,
+                      triage_action, triage_destination, triage_reason, triaged_at
+               FROM exceptions
+               WHERE status = $1
+               ORDER BY review_priority ASC, created_at DESC
+               LIMIT $2""",
+            status, limit,
+        )
+        return [
+            ExceptionItem(
+                item_id=r["item_id"],
+                reason=r["reason"],
+                review_priority=r["review_priority"],
+                classification_output=json.loads(r["classification_output"]) if isinstance(r["classification_output"], str) else r["classification_output"],
+                envelope_json=json.loads(r["envelope_json"]) if isinstance(r["envelope_json"], str) else r["envelope_json"],
+                created_at=r["created_at"],
+                status=r["status"],
+                triage_action=r["triage_action"],
+                triage_destination=r["triage_destination"],
+                triage_reason=r["triage_reason"],
+                triaged_at=r["triaged_at"],
             )
-            rows = await cursor.fetchall()
-            return [
-                ExceptionItem(
-                    item_id=r[0],
-                    reason=r[1],
-                    review_priority=r[2],
-                    classification_output=json.loads(r[3]),
-                    envelope_json=json.loads(r[4]),
-                    created_at=datetime.fromisoformat(r[5]),
-                    status=r[6],
-                    triage_action=r[7],
-                    triage_destination=r[8],
-                    triage_reason=r[9],
-                    triaged_at=datetime.fromisoformat(r[10]) if r[10] else None,
-                )
-                for r in rows
-            ]
-        finally:
-            await db.close()
+            for r in rows
+        ]
 
     async def triage(
         self,
@@ -125,37 +94,23 @@ class ExceptionQueue:
         reason: str | None = None,
     ) -> bool:
         """Triage an exception: file_as, retrigger, discard, or snooze."""
-        db = await self._get_db()
-        try:
-            cursor = await db.execute(
-                """UPDATE exceptions
-                   SET status = 'triaged',
-                       triage_action = ?,
-                       triage_destination = ?,
-                       triage_reason = ?,
-                       triaged_at = ?
-                   WHERE item_id = ? AND status = 'pending'""",
-                (
-                    action,
-                    destination,
-                    reason,
-                    datetime.now(UTC).isoformat(),
-                    item_id,
-                ),
-            )
-            await db.commit()
-            return cursor.rowcount > 0
-        finally:
-            await db.close()
+        pool = get_pool()
+        result = await pool.execute(
+            """UPDATE exceptions
+               SET status = 'triaged',
+                   triage_action = $1,
+                   triage_destination = $2,
+                   triage_reason = $3,
+                   triaged_at = $4
+               WHERE item_id = $5 AND status = 'pending'""",
+            action, destination, reason, datetime.now(UTC), item_id,
+        )
+        return result.split()[-1] != "0"
 
     async def count(self, status: str = "pending") -> int:
         """Count items with a given status."""
-        db = await self._get_db()
-        try:
-            cursor = await db.execute(
-                "SELECT COUNT(*) FROM exceptions WHERE status = ?", (status,)
-            )
-            row = await cursor.fetchone()
-            return row[0] if row else 0
-        finally:
-            await db.close()
+        pool = get_pool()
+        row = await pool.fetchval(
+            "SELECT COUNT(*) FROM exceptions WHERE status = $1", status
+        )
+        return row or 0
