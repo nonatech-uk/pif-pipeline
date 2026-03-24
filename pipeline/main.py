@@ -153,8 +153,11 @@ async def run_watcher(watcher, name: str) -> None:
 
 
 def create_app() -> FastAPI:
-    """Create the FastAPI app with webhook routes."""
-    app = FastAPI(title="Pipeline")
+    """Create the FastAPI app with webhook routes and dashboard API."""
+    from pipeline.api.app import create_dashboard_app
+
+    app = create_dashboard_app()
+    # Add ingest webhook routes to the same app
     app.include_router(immich_router)
     return app
 
@@ -173,6 +176,12 @@ async def main() -> None:
 
     rules_loader = RulesLoader(settings.project_root / "shared" / "rules.yaml")
     _rules_engine = RulesEngine(rules_loader)
+
+    # Share instances with dashboard API
+    from pipeline.api import deps as api_deps
+    api_deps._settings = settings
+    api_deps._audit_log = _audit_log
+    api_deps._exception_queue = _exception_queue
 
     # Register action handlers
     registry.register_all(settings)
