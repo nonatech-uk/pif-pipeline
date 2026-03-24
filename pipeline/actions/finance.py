@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import logging
 from typing import Any
 
@@ -47,6 +48,11 @@ class FinanceHandler(ActionHandler):
 
         # Include full extraction data for reference
         payload["ocr_data"] = extracted
+
+        # Include file bytes so the receipt is viewable in the finance UI
+        if envelope.raw_bytes:
+            payload["file_bytes"] = base64.b64encode(envelope.raw_bytes).decode()
+            payload["mime_type"] = envelope.media_type
 
         # Add Paperless ref if available
         paperless_result = envelope.action_results.get("paperless")
