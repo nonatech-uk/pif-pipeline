@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import sys
 import time
 
@@ -155,10 +156,16 @@ async def run_watcher(watcher, name: str) -> None:
 def create_app() -> FastAPI:
     """Create the FastAPI app with webhook routes and dashboard API."""
     from pipeline.api.app import create_dashboard_app
+    from pipeline.feedback.webhook import router as feedback_router
+
+    from pipeline.api.app import mount_static
 
     app = create_dashboard_app()
-    # Add ingest webhook routes to the same app
+    # Add ingest + feedback webhook routes to the same app
     app.include_router(immich_router)
+    app.include_router(feedback_router)
+    # Static files must be mounted last — catch-all route
+    mount_static(app)
     return app
 
 
@@ -177,11 +184,26 @@ async def main() -> None:
     rules_loader = RulesLoader(settings.project_root / "shared" / "rules.yaml")
     _rules_engine = RulesEngine(rules_loader)
 
+    # Corrections table
+    from pipeline.feedback.corrections import CorrectionsTable
+    corrections = CorrectionsTable(settings.resolve_path(settings.paths.corrections_db))
+
     # Share instances with dashboard API
     from pipeline.api import deps as api_deps
     api_deps._settings = settings
     api_deps._audit_log = _audit_log
     api_deps._exception_queue = _exception_queue
+    api_deps._corrections = corrections
+
+    # Configure feedback webhook
+    from pipeline.feedback import webhook as feedback_webhook
+    feedback_webhook.configure(
+        audit_log=_audit_log,
+        corrections=corrections,
+        paperless_url=settings.services.paperless_url,
+        paperless_token=settings.paperless_api_key,
+        webhook_secret=os.environ.get("PAPERLESS_WEBHOOK_SECRET", ""),
+    )
 
     # Register action handlers
     registry.register_all(settings)

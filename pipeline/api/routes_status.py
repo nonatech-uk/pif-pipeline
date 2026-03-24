@@ -6,7 +6,7 @@ from datetime import date
 
 from fastapi import APIRouter
 
-from pipeline.api.deps import get_audit_log, get_exception_queue
+from pipeline.api.deps import get_audit_log, get_corrections, get_exception_queue
 
 router = APIRouter()
 
@@ -27,7 +27,7 @@ async def pipeline_status():
         1 for e in entries
         if e.timestamp.date() == date.today() and not e.exception_queued
     )
-    corrections_pending = 0  # Phase 7
+    corrections_pending = await get_corrections().count("pending")
 
     return {
         "processed_today": today,

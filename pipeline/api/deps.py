@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from pipeline.audit.log import AuditLog
 from pipeline.config import load_settings, Settings
 from pipeline.exceptions.queue import ExceptionQueue
+from pipeline.feedback.corrections import CorrectionsTable
 
 _settings: Settings | None = None
 _audit_log: AuditLog | None = None
 _exception_queue: ExceptionQueue | None = None
+_corrections: CorrectionsTable | None = None
 
 
 def get_settings() -> Settings:
@@ -34,3 +34,11 @@ def get_exception_queue() -> ExceptionQueue:
         s = get_settings()
         _exception_queue = ExceptionQueue(s.resolve_path(s.paths.exceptions_db))
     return _exception_queue
+
+
+def get_corrections() -> CorrectionsTable:
+    global _corrections
+    if _corrections is None:
+        s = get_settings()
+        _corrections = CorrectionsTable(s.resolve_path(s.paths.corrections_db))
+    return _corrections

@@ -30,9 +30,11 @@ def create_dashboard_app() -> FastAPI:
     app.include_router(decisions_router, prefix="/api")
     app.include_router(corrections_router, prefix="/api")
 
-    # Serve static UI if built
+    return app
+
+
+def mount_static(app: FastAPI) -> None:
+    """Mount static UI files — call after all routers are added."""
     ui_dist = Path(__file__).resolve().parent.parent.parent / "pipeline-ui" / "dist"
     if ui_dist.exists():
         app.mount("/", StaticFiles(directory=str(ui_dist), html=True), name="ui")
-
-    return app
