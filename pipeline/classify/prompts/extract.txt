@@ -23,9 +23,16 @@ tax_document:
 wine_label:
   wine_name, producer, region, country, vintage, grape_variety, abv
 
+Additionally, for ALL labels:
+- "date" fields must be in ISO 8601 format: YYYY-MM-DD
+- "tags": suggest 2-5 short keyword tags relevant for personal filing (e.g. "Property", "Travel", "Insurance", "Tax", "Wine"). Include specific identifiers where useful (e.g. a property name, airline, bank name).
+- "correspondent": the primary organisation or person this document is from (e.g. company name, bank, insurer)
+
 Extract only fields that are clearly present. Use null for missing fields.
 Respond with JSON only, no markdown fences:
 {
   "label": "{{label}}",
-  "fields": { ... }
+  "fields": { ... },
+  "tags": ["tag1", "tag2"],
+  "correspondent": "Organisation Name"
 }

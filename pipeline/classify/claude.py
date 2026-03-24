@@ -105,9 +105,16 @@ class ClaudeClassifier(Classifier):
 
         text = response.content[0].text.strip()
         parsed = _parse_json(text)
-        if parsed and "fields" in parsed:
-            return parsed["fields"]
-        return parsed
+        if not parsed:
+            return parsed
+
+        # Merge fields, tags, and correspondent into a flat dict
+        result = parsed.get("fields", {}) if "fields" in parsed else parsed
+        if "tags" in parsed:
+            result["_tags"] = parsed["tags"]
+        if "correspondent" in parsed:
+            result["_correspondent"] = parsed["correspondent"]
+        return result
 
 
 def _build_content(envelope: Envelope) -> list[dict] | None:

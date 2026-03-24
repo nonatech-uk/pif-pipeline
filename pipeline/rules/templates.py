@@ -19,6 +19,7 @@ def _get_env() -> Environment:
             autoescape=False,
         )
         _env.filters["date_format"] = _date_format
+        _env.filters["compact_date"] = _compact_date
         _env.filters["round"] = _round
     return _env
 
@@ -92,6 +93,28 @@ def _date_format(value: Any, fmt: str = "%Y-%m-%d") -> str:
     if hasattr(value, "strftime"):
         return value.strftime(fmt)
     return str(value)
+
+
+def _compact_date(value: Any) -> str:
+    """Convert a date string or datetime to YYYYMMDD format."""
+    if not value:
+        return ""
+    if hasattr(value, "strftime"):
+        return value.strftime("%Y%m%d")
+    # Parse ISO date string
+    s = str(value).strip()
+    try:
+        from datetime import datetime
+        for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d %b %Y", "%d %B %Y"):
+            try:
+                return datetime.strptime(s, fmt).strftime("%Y%m%d")
+            except ValueError:
+                continue
+    except Exception:
+        pass
+    # Last resort: strip non-digits
+    digits = "".join(c for c in s if c.isdigit())
+    return digits[:8] if len(digits) >= 8 else s
 
 
 def _round(value: Any, precision: int = 2) -> Any:

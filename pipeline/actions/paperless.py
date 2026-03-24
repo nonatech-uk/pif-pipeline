@@ -36,10 +36,17 @@ class PaperlessHandler(ActionHandler):
         rendered = self._render_params(params.get("params", params), envelope)
         doc_type_name = rendered.get("document_type", "")
         title = rendered.get("title", envelope.file_name or "Untitled")
-        correspondent_name = rendered.get("correspondent", "")
+        correspondent_name = rendered.get("correspondent", "") or envelope.extracted.get("_correspondent", "")
         tag_names = rendered.get("tags", [])
         if isinstance(tag_names, str):
             tag_names = [tag_names]
+        # Merge tags from Claude extraction
+        extracted_tags = envelope.extracted.get("_tags", [])
+        if extracted_tags:
+            existing = {t.lower() for t in tag_names}
+            for t in extracted_tags:
+                if t.lower() not in existing:
+                    tag_names.append(t)
 
         try:
             async with httpx.AsyncClient(timeout=30) as client:

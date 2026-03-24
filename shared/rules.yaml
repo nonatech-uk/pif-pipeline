@@ -12,6 +12,10 @@
 #       params: dict      — handler-specific parameters (supports Jinja2 templates)
 #   on_match: stop|continue  — stop = no further rules; continue = keep evaluating
 #   enabled: bool         — false to disable without deleting
+#
+# Title convention: YYYYMMDD-Description
+#   Use {{ extracted.date|compact_date }} for the date prefix.
+#   Correspondent and tags are auto-populated from Claude extraction.
 
 rules:
   # --- Priority 10: High-value documents (stop after match) ---
@@ -26,7 +30,7 @@ rules:
       - handler: paperless
         params:
           document_type: Boarding Pass
-          title: "{{ extracted.airline }} {{ extracted.flight_number }} {{ extracted.date }}"
+          title: "{{ extracted.date|compact_date }}-{{ extracted.airline }} {{ extracted.flight_number }} {{ extracted.origin }}-{{ extracted.destination }}"
       - handler: location
         params:
           event_type: flight
@@ -43,7 +47,7 @@ rules:
       - handler: paperless
         params:
           document_type: Invoice
-          title: "{{ extracted.vendor }} invoice {{ extracted.date }}"
+          title: "{{ extracted.date|compact_date }}-{{ extracted.vendor }}"
       - handler: finance
         params:
           source: pipeline
@@ -60,7 +64,7 @@ rules:
       - handler: paperless
         params:
           document_type: Receipt
-          title: "{{ extracted.merchant }} {{ extracted.date }}"
+          title: "{{ extracted.date|compact_date }}-{{ extracted.merchant }}"
       - handler: finance
         params:
           source: pipeline
@@ -78,7 +82,7 @@ rules:
       - handler: paperless
         params:
           document_type: Bank Statement
-          title: "{{ extracted.bank }} statement {{ extracted.period_from }}"
+          title: "{{ extracted.period_from|compact_date }}-{{ extracted.bank }} Statement"
     on_match: stop
 
   - id: p20-insurance
@@ -92,7 +96,7 @@ rules:
       - handler: paperless
         params:
           document_type: Insurance Policy
-          title: "{{ extracted.insurer }} {{ extracted.policy_type }}"
+          title: "{{ extracted.start_date|compact_date }}-{{ extracted.insurer }} {{ extracted.policy_type }}"
     on_match: stop
 
   - id: p20-tax
@@ -106,7 +110,7 @@ rules:
       - handler: paperless
         params:
           document_type: Tax Document
-          title: "{{ extracted.document_type }} {{ extracted.tax_year }}"
+          title: "{{ extracted.tax_year }}-{{ extracted.issuer }} {{ extracted.document_type }}"
     on_match: stop
 
   # --- Priority 30: Wine (stop) ---
@@ -121,7 +125,7 @@ rules:
       - handler: paperless
         params:
           document_type: Wine Label
-          title: "{{ extracted.wine_name }} {{ extracted.vintage }}"
+          title: "{{ extracted.vintage }}-{{ extracted.producer }} {{ extracted.wine_name }}"
     on_match: stop
 
   # --- Priority 50: Geo-tagged photos (continue — pet rules may also fire) ---
@@ -142,7 +146,7 @@ rules:
 
   # --- Priority 60: Pet photos (continue — accumulates with geo) ---
   - id: p60-pet-nona
-    name: "Nona photo \u2192 Immich tag"
+    name: "Nona photo → Immich tag"
     priority: 60
     conditions:
       - type: pet_recognition
@@ -156,7 +160,7 @@ rules:
     on_match: continue
 
   - id: p60-pet-og
-    name: "Og photo \u2192 Immich tag"
+    name: "Og photo → Immich tag"
     priority: 60
     conditions:
       - type: pet_recognition
