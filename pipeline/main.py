@@ -195,6 +195,18 @@ async def main() -> None:
     api_deps._exception_queue = _exception_queue
     api_deps._corrections = corrections
 
+    # Retrospective runner
+    from pipeline.retrospective.runner import RetrospectiveRunner
+    from pipeline.retrospective.sources import ImmichCorpus, PaperlessCorpus
+    immich_corpus = ImmichCorpus(settings.services.immich_url, settings.immich_api_key) if settings.immich_api_key else None
+    paperless_corpus = PaperlessCorpus(settings.services.paperless_url, settings.paperless_api_key) if settings.paperless_api_key else None
+    api_deps._retrospective_runner = RetrospectiveRunner(
+        tier_runner=_tier_runner,
+        immich_corpus=immich_corpus,
+        paperless_corpus=paperless_corpus,
+        corrections=corrections,
+    )
+
     # Configure feedback webhook
     from pipeline.feedback import webhook as feedback_webhook
     feedback_webhook.configure(

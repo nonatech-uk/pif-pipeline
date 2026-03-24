@@ -6,11 +6,13 @@ from pipeline.audit.log import AuditLog
 from pipeline.config import load_settings, Settings
 from pipeline.exceptions.queue import ExceptionQueue
 from pipeline.feedback.corrections import CorrectionsTable
+from pipeline.retrospective.runner import RetrospectiveRunner
 
 _settings: Settings | None = None
 _audit_log: AuditLog | None = None
 _exception_queue: ExceptionQueue | None = None
 _corrections: CorrectionsTable | None = None
+_retrospective_runner: RetrospectiveRunner | None = None
 
 
 def get_settings() -> Settings:
@@ -34,6 +36,10 @@ def get_exception_queue() -> ExceptionQueue:
         s = get_settings()
         _exception_queue = ExceptionQueue(s.resolve_path(s.paths.exceptions_db))
     return _exception_queue
+
+
+def get_retrospective_runner() -> RetrospectiveRunner | None:
+    return _retrospective_runner
 
 
 def get_corrections() -> CorrectionsTable:
