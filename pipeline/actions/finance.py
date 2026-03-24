@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import base64
 import logging
+import re
+from datetime import date, datetime
 from typing import Any
 
 import httpx
@@ -35,7 +37,7 @@ class FinanceHandler(ActionHandler):
         payload: dict[str, Any] = {
             "original_filename": envelope.file_name or "unknown",
             "source": params.get("params", params).get("source", "pipeline"),
-            "extracted_date": extracted.get("date"),
+            "extracted_date": _normalise_date(extracted.get("date")),
             "extracted_amount": extracted.get("amount"),
             "extracted_currency": extracted.get("currency", "GBP"),
             "extracted_merchant": extracted.get("vendor") or extracted.get("merchant"),
@@ -80,3 +82,20 @@ class FinanceHandler(ActionHandler):
         except httpx.HTTPError as e:
             log.error("Finance connection error: %s", e)
             return ActionResult(ok=False, destination=self.name, reason=str(e), retryable=True)
+
+
+def _normalise_date(raw: str | None) -> str | None:
+    """Convert various date formats to ISO 8601 (YYYY-MM-DD)."""
+    if not raw:
+        return None
+    # Already ISO
+    if re.match(r"^\d{4}-\d{2}-\d{2}$", raw):
+        return raw
+    # Common formats Claude might return
+    for fmt in ("%d/%m/%Y", "%d %b %Y", "%d %B %Y", "%d-%m-%Y", "%m/%d/%Y"):
+        try:
+            return datetime.strptime(raw.strip(), fmt).strftime("%Y-%m-%d")
+        except ValueError:
+            continue
+    log.warning("Could not parse date: %s", raw)
+    return None
