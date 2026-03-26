@@ -64,12 +64,21 @@ class ImmichWatcher(SourceWatcher):
             self._base_url, self._poll_interval,
         )
 
+        hc_url = "https://hc.mees.st/ping/44e269fc-0e96-4e07-939e-d3742c7ddfc0"
+
         while True:
             try:
                 for envelope in await self._poll():
                     yield envelope
+                async with httpx.AsyncClient(timeout=10) as hc:
+                    await hc.get(hc_url)
             except Exception:
                 log.exception("Immich poll error, retrying in %ds", self._poll_interval)
+                try:
+                    async with httpx.AsyncClient(timeout=10) as hc:
+                        await hc.get(f"{hc_url}/fail")
+                except Exception:
+                    pass
 
             await asyncio.sleep(self._poll_interval)
 

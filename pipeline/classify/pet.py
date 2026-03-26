@@ -56,6 +56,20 @@ class PetClassifier(Classifier):
 
         try:
             return await self._identify(envelope)
+        except anthropic.APIStatusError as e:
+            log.exception("Pet recognition API error (status %s)", e.status_code)
+            if e.status_code in (402, 429):
+                import pipeline.notify as notify_mod
+                notifier = notify_mod.get()
+                if notifier:
+                    reason = "Insufficient credits" if e.status_code == 402 else "Rate limited"
+                    import asyncio
+                    asyncio.ensure_future(notifier.send(
+                        f"Claude API: {reason}",
+                        f"{reason} — pet recognition skipped.\n\n{e.message}",
+                        notify_mod.Priority.HIGH,
+                    ))
+            return None
         except anthropic.APIError:
             log.exception("Pet recognition API error")
             return None

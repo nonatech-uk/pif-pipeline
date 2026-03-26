@@ -1,10 +1,13 @@
-"""Location action handler — writes structured events to the location DB."""
+"""Location action handler — posts flight data to the my-locations API."""
 
 from __future__ import annotations
 
 import logging
 from typing import Any
 
+import httpx
+
+import pipeline.notify as notify_mod
 from pipeline.actions.base import ActionHandler
 from pipeline.models import ActionResult, Envelope
 
@@ -12,41 +15,75 @@ log = logging.getLogger(__name__)
 
 
 class LocationHandler(ActionHandler):
-    """Write a location event based on extracted fields (flights, travel, etc.)."""
+    """Post location events to the my-locations service."""
 
     name = "location"
+
+    def __init__(self, base_url: str, secret: str) -> None:
+        self._base_url = base_url.rstrip("/")
+        self._secret = secret
 
     async def execute(self, envelope: Envelope, params: dict[str, Any]) -> ActionResult:
         rendered = self._render_params(params.get("params", params), envelope)
         event_type = rendered.get("event_type", "unknown")
 
+        if event_type != "flight":
+            log.info("Location event type '%s' not yet supported, skipping", event_type)
+            return ActionResult(ok=True, destination=self.name, ref=event_type)
+
         extracted = envelope.extracted
         if not extracted:
             return ActionResult(ok=False, destination=self.name, reason="No extracted fields")
 
-        # Build location event record
-        event = {
-            "event_type": event_type,
-            "source_item_id": envelope.id,
-            "source_type": envelope.source_type,
+        payload = {
+            "date": extracted.get("date"),
+            "dep_airport": extracted.get("origin"),
+            "arr_airport": extracted.get("destination"),
+            "flight_number": extracted.get("flight_number"),
+            "airline": extracted.get("airline"),
+            "seat_number": extracted.get("seat"),
+            "cabin_class": extracted.get("cabin_class"),
+            "source": "pipeline",
         }
 
-        # Add GPS if available
-        if envelope.exif:
-            if envelope.exif.gps_lat is not None:
-                event["lat"] = envelope.exif.gps_lat
-                event["lng"] = envelope.exif.gps_lng
-            if envelope.exif.taken_at:
-                event["event_date"] = envelope.exif.taken_at.isoformat()
+        if not payload["date"] or not payload["dep_airport"] or not payload["arr_airport"]:
+            return ActionResult(ok=False, destination=self.name, reason="Missing date, origin, or destination")
 
-        # Add extracted fields
-        for key in ("origin", "destination", "date", "date_from", "date_to",
-                     "flight_number", "airline"):
-            if key in extracted:
-                event[key] = extracted[key]
+        try:
+            async with httpx.AsyncClient(timeout=15) as client:
+                resp = await client.post(
+                    f"{self._base_url}/api/v1/flights/ingest",
+                    json=payload,
+                    headers={"Authorization": f"Bearer {self._secret}"},
+                )
 
-        # For now, log the event — direct DB writes or API calls
-        # will be wired up when the location service has an ingest endpoint
-        log.info("Location event: %s — %s", event_type, event)
+            if resp.status_code in (200, 201):
+                data = resp.json()
+                status = data.get("status", "ok")
+                ref = str(data.get("id", status))
+                route = f"{payload['dep_airport']}→{payload['arr_airport']}"
+                log.info("Location flight ingested: %s (%s)", ref, route)
 
-        return ActionResult(ok=True, destination=self.name, ref=event_type)
+                notifier = notify_mod.get()
+                if notifier:
+                    if status == "duplicate":
+                        await notifier.send(
+                            "Flight: duplicate",
+                            f"Duplicate flight ignored: {payload.get('airline', '')} {payload.get('flight_number', '')} {route} on {payload['date']}",
+                        )
+                    else:
+                        await notifier.send(
+                            "Flight added",
+                            f"New flight recorded: {payload.get('airline', '')} {payload.get('flight_number', '')} {route} on {payload['date']}",
+                        )
+
+                return ActionResult(ok=True, destination=self.name, ref=ref)
+
+            log.error("Location API error: HTTP %d — %s", resp.status_code, resp.text[:200])
+            return ActionResult(
+                ok=False, destination=self.name,
+                reason=f"HTTP {resp.status_code}", retryable=resp.status_code >= 500,
+            )
+        except httpx.HTTPError as e:
+            log.error("Location API connection error: %s", e)
+            return ActionResult(ok=False, destination=self.name, reason=str(e), retryable=True)

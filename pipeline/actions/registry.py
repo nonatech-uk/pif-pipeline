@@ -61,7 +61,13 @@ def register_all(settings: Settings) -> None:
     else:
         log.warning("IMMICH_API_KEY not set — immich handlers disabled")
 
-    register(LocationHandler())
+    if settings.services.location_secret:
+        register(LocationHandler(
+            base_url=settings.services.location_url,
+            secret=settings.services.location_secret,
+        ))
+    else:
+        log.warning("LOCATION_SECRET not set — location handler disabled")
     register(ExceptionQueueHandler())
     register(NotifyHandler())
 

@@ -7,6 +7,7 @@ import logging
 import os
 import sys
 import time
+from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI
@@ -22,6 +23,8 @@ from pipeline.ingest.email import EmailWatcher
 from pipeline.ingest.immich import ImmichWatcher
 from pipeline.ingest.scanner import ScannerWatcher
 from pipeline.models import Envelope
+from pipeline.notify import Notifier, Priority
+import pipeline.notify as notify_mod
 from pipeline.rules.engine import RulesEngine
 from pipeline.rules.loader import RulesLoader
 
@@ -148,10 +151,24 @@ async def run_watcher(watcher, name: str) -> None:
                 await process_envelope(envelope)
             except Exception:
                 log.exception("Failed to process envelope %s", envelope.id[:8])
+                notifier = notify_mod.get()
+                if notifier:
+                    await notifier.send(
+                        f"Processing failed: {envelope.file_name or envelope.id[:8]}",
+                        f"Source: {envelope.source_type}\nFile: {envelope.file_name}\nError during pipeline processing — item queued for manual review.",
+                        Priority.HIGH,
+                    )
     except asyncio.CancelledError:
         log.info("Watcher %s cancelled", name)
     except Exception:
         log.exception("Watcher %s crashed", name)
+        notifier = notify_mod.get()
+        if notifier:
+            await notifier.send(
+                f"Watcher crashed: {name}",
+                f"The {name} watcher has crashed and is no longer polling. Pipeline restart required.",
+                Priority.HIGH,
+            )
 
 
 def create_app() -> FastAPI:
@@ -175,6 +192,19 @@ async def main() -> None:
     settings = load_settings()
     log.info("Pipeline starting — project root: %s", settings.project_root)
     log.info("Tier ceiling: %s", settings.tiers.ceiling)
+
+    # Initialise notifications
+    notifier = Notifier(
+        pushover_app_token=settings.pushover_app_token,
+        pushover_user_key=settings.pushover_user_key,
+        smtp_host=settings.services.imap_host,
+        smtp_port=465,
+        smtp_user=settings.services.imap_user,
+        smtp_password=settings.services.imap_password,
+        email_to=settings.services.imap_user,
+    )
+    notify_mod.configure(notifier)
+    log.info("Notifications: pushover=%s email=%s", notifier.pushover_enabled, notifier.email_enabled)
 
     # Initialise database pool
     database_url = os.environ.get("DATABASE_URL", "")
@@ -232,7 +262,11 @@ async def main() -> None:
     watchers: list[tuple[str, object]] = []
 
     drop_folder = settings.resolve_path(settings.paths.drop_folder)
-    watchers.append(("scanner", ScannerWatcher(drop_folder)))
+    processed_folder = Path(os.environ.get("SCANNER_PROCESSED_DIR", ""))
+    watchers.append(("scanner", ScannerWatcher(
+        drop_folder,
+        processed_folder=processed_folder if processed_folder.parts else None,
+    )))
 
     if settings.immich_api_key:
         watchers.append(("immich", ImmichWatcher(

@@ -43,6 +43,8 @@ class ServicesConfig(BaseSettings):
     imap_port: int = 993
     imap_user: str = ""
     imap_password: str = ""
+    location_url: str = "http://host.containers.internal:8100"
+    location_secret: str = ""
 
 
 class ClassifierConfig(BaseSettings):
@@ -73,6 +75,10 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     immich_api_key: str = ""
     paperless_api_key: str = ""
+
+    # Notifications
+    pushover_app_token: str = ""
+    pushover_user_key: str = ""
 
     def resolve_path(self, relative: str) -> Path:
         """Resolve a config-relative path to an absolute path."""
@@ -112,4 +118,6 @@ def load_settings(config_path: Path | None = None) -> Settings:
         anthropic_api_key=os.environ.get("ANTHROPIC_API_KEY", ""),
         immich_api_key=os.environ.get("IMMICH_API_KEY", ""),
         paperless_api_key=os.environ.get("PAPERLESS_API_KEY", ""),
+        pushover_app_token=os.environ.get("PUSHOVER_APP_TOKEN", ""),
+        pushover_user_key=os.environ.get("PUSHOVER_USER_KEY", ""),
     )

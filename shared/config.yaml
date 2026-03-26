@@ -2,7 +2,7 @@
 # Secrets (API keys, passwords) come from environment variables.
 
 paths:
-  drop_folder: data/drop
+  drop_folder: /app/inbox
   data_dir: data
   pets_dir: shared/pets
 
@@ -20,6 +20,8 @@ services:
   imap_port: 993
   imap_user: "${IMAP_USER}"
   imap_password: "${IMAP_PASSWORD}"
+  location_url: http://host.containers.internal:8100
+  location_secret: "${LOCATION_SECRET}"
 
 classifier:
   clip_threshold_default: 0.75

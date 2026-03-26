@@ -163,12 +163,22 @@ class EmailWatcher(SourceWatcher):
             self._user, self._host, self._folder, self._poll_interval,
         )
 
+        import httpx
+        hc_url = "https://hc.mees.st/ping/5c7b6230-b715-4694-ba61-b22b539e2612"
+
         while True:
             try:
                 for envelope in await self._poll():
                     yield envelope
+                async with httpx.AsyncClient(timeout=10) as hc:
+                    await hc.get(hc_url)
             except Exception:
                 log.exception("Email poll error, retrying in %ds", self._poll_interval)
+                try:
+                    async with httpx.AsyncClient(timeout=10) as hc:
+                        await hc.get(f"{hc_url}/fail")
+                except Exception:
+                    pass
 
             await asyncio.sleep(self._poll_interval)
 

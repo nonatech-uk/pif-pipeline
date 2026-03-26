@@ -3,7 +3,7 @@ You are a structured data extractor. Given a document or image that has been cla
 Extraction schemas by label:
 
 boarding_pass:
-  flight_number, airline, origin, destination, date, passenger_name, seat, gate
+  flight_number, airline, origin (IATA code only, e.g. "LHR"), destination (IATA code only, e.g. "JFK"), date, passenger_name, seat, gate, cabin_class (one of: economy, business, first)
 
 invoice:
   vendor, amount, currency, date, invoice_number, due_date, description
