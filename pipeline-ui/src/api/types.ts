@@ -77,6 +77,24 @@ export interface RuleAction {
   params: Record<string, unknown>
 }
 
+export interface CorrectionItem {
+  id: number
+  correction_type: string
+  field: string
+  original_value: string | null
+  corrected_value: string | null
+  item_id: string | null
+  label: string | null
+  status: string
+  proposed_action: { description: string; action_type: string } | null
+  created_at: string
+}
+
+export interface SelectedItem {
+  id: string
+  context: 'decision' | 'exception'
+}
+
 export interface Rule {
   id: string
   name: string

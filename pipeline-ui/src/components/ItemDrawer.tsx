@@ -1,12 +1,28 @@
-import { useDecisionDetail } from '../api/hooks'
+import { useDecisionDetail, useExceptionDetail } from '../api/hooks'
+import DocumentPreview from './DocumentPreview'
+import CorrectionForm from './CorrectionForm'
 
 interface Props {
   itemId: string
+  context: 'decision' | 'exception'
   onClose: () => void
 }
 
-export default function ItemDrawer({ itemId, onClose }: Props) {
-  const { data: detail, isLoading } = useDecisionDetail(itemId)
+export default function ItemDrawer({ itemId, context, onClose }: Props) {
+  const decision = useDecisionDetail(context === 'decision' ? itemId : null)
+  const exception = useExceptionDetail(context === 'exception' ? itemId : null)
+
+  const isLoading = context === 'decision' ? decision.isLoading : exception.isLoading
+  const detail = decision.data
+  const excData = exception.data
+
+  // Normalise exception data to look like a decision for shared rendering
+  const envelope = excData?.envelope as Record<string, unknown> | undefined
+  const classification = excData?.classification as Record<string, unknown> | undefined
+
+  const mediaType = detail?.media_type ?? String(envelope?.media_type ?? '')
+  const label = detail?.label ?? String(classification?.label ?? '')
+  const extracted = detail?.extracted ?? (envelope?.extracted as Record<string, unknown>) ?? {}
 
   return (
     <div className="fixed inset-0 bg-black/50 flex justify-end z-50" onClick={onClose}>
@@ -23,19 +39,36 @@ export default function ItemDrawer({ itemId, onClose }: Props) {
 
         {isLoading && <div className="text-text-secondary py-5">Loading...</div>}
 
-        {detail && (
+        {(detail || excData) && (
           <div className="space-y-5">
+            <DocumentPreview
+              itemId={itemId}
+              mediaType={mediaType}
+              context={context}
+            />
+
             <Section title="Classification">
-              <Row label="Label" value={detail.label} />
-              <Row label="Confidence" value={detail.confidence != null ? `${Math.round(detail.confidence * 100)}%` : null} />
-              <Row label="Tier" value={detail.tier_used} />
-              <Row label="Source" value={`${detail.source_type} — ${detail.source_path ?? ''}`} />
-              <Row label="Media" value={detail.media_type} />
+              <Row label="Label" value={label} />
+              {detail && (
+                <>
+                  <Row label="Confidence" value={detail.confidence != null ? `${Math.round(detail.confidence * 100)}%` : null} />
+                  <Row label="Tier" value={detail.tier_used} />
+                  <Row label="Source" value={`${detail.source_type} — ${detail.source_path ?? ''}`} />
+                  <Row label="Media" value={detail.media_type} />
+                </>
+              )}
+              {!detail && excData && (
+                <>
+                  <Row label="Source" value={String(envelope?.source_type ?? '') + ' — ' + String(envelope?.source_path ?? '')} />
+                  <Row label="File" value={String(envelope?.file_name ?? '')} />
+                  <Row label="Reason" value={excData.reason} />
+                </>
+              )}
             </Section>
 
-            {detail.extracted && Object.keys(detail.extracted).filter(k => !k.startsWith('_')).length > 0 && (
+            {Object.keys(extracted).filter(k => !k.startsWith('_')).length > 0 && (
               <Section title="Extracted Fields">
-                {Object.entries(detail.extracted)
+                {Object.entries(extracted)
                   .filter(([k]) => !k.startsWith('_'))
                   .map(([k, v]) => (
                     <Row key={k} label={k} value={typeof v === 'object' ? JSON.stringify(v) : String(v ?? '')} />
@@ -43,60 +76,72 @@ export default function ItemDrawer({ itemId, onClose }: Props) {
               </Section>
             )}
 
-            <Section title="Destinations">
-              <div className="flex gap-1 flex-wrap">
-                {detail.destinations.map((d) => (
-                  <span key={d} className="text-xs bg-success text-white px-2 py-0.5 rounded">{d}</span>
-                ))}
-                {detail.exception_queued && (
-                  <span className="text-xs bg-danger text-white px-2 py-0.5 rounded">Exception queued</span>
-                )}
-              </div>
-            </Section>
-
-            {detail.trace && (
+            {detail && (
               <>
-                <Section title="Tier Trace">
-                  {detail.trace.tiers.map((t, i) => (
-                    <div key={i} className="flex gap-2 items-center py-0.5 text-xs">
-                      <span className="text-tier-claude font-semibold min-w-[80px]">{t.tier}</span>
-                      {t.skipped ? (
-                        <span className="text-text-secondary">skipped ({t.skip_reason})</span>
-                      ) : (
-                        <span className="text-success">
-                          {t.label} @ {t.confidence != null ? Math.round(t.confidence * 100) : '?'}% ({t.duration_ms}ms)
-                        </span>
-                      )}
-                    </div>
-                  ))}
+                <Section title="Destinations">
+                  <div className="flex gap-1 flex-wrap">
+                    {detail.destinations.map((d) => (
+                      <span key={d} className="text-xs bg-success text-white px-2 py-0.5 rounded">{d}</span>
+                    ))}
+                    {detail.exception_queued && (
+                      <span className="text-xs bg-danger text-white px-2 py-0.5 rounded">Exception queued</span>
+                    )}
+                  </div>
                 </Section>
 
-                <Section title="Rules Evaluated">
-                  {detail.trace.rules.map((r, i) => (
-                    <div key={i} className="flex gap-2 items-center py-0.5 text-xs">
-                      <span className={r.matched ? 'text-success' : 'text-border'}>
-                        {r.matched ? '\u2713' : '\u2717'}
-                      </span>
-                      <span className="text-text-primary">{r.rule_name}</span>
-                    </div>
-                  ))}
-                </Section>
+                {detail.trace && (
+                  <>
+                    <Section title="Tier Trace">
+                      {detail.trace.tiers.map((t, i) => (
+                        <div key={i} className="flex gap-2 items-center py-0.5 text-xs">
+                          <span className="text-tier-claude font-semibold min-w-[80px]">{t.tier}</span>
+                          {t.skipped ? (
+                            <span className="text-text-secondary">skipped ({t.skip_reason})</span>
+                          ) : (
+                            <span className="text-success">
+                              {t.label} @ {t.confidence != null ? Math.round(t.confidence * 100) : '?'}% ({t.duration_ms}ms)
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </Section>
 
-                <Section title="Actions">
-                  {detail.trace.actions.map((a, i) => (
-                    <div key={i} className="flex gap-2 items-center py-0.5 text-xs">
-                      <span className={a.ok ? 'text-success' : 'text-danger'}>
-                        {a.ok ? '\u2713' : '\u2717'}
-                      </span>
-                      <span className="text-text-primary">{a.handler}</span>
-                      {a.ref && <span className="text-text-secondary text-[11px]">ref: {a.ref.slice(0, 12)}</span>}
-                      {a.reason && <span className="text-danger text-[11px]">{a.reason}</span>}
-                      {a.duration_ms != null && <span className="text-text-secondary text-[11px] ml-auto">{a.duration_ms}ms</span>}
-                    </div>
-                  ))}
-                </Section>
+                    <Section title="Rules Evaluated">
+                      {detail.trace.rules.map((r, i) => (
+                        <div key={i} className="flex gap-2 items-center py-0.5 text-xs">
+                          <span className={r.matched ? 'text-success' : 'text-border'}>
+                            {r.matched ? '\u2713' : '\u2717'}
+                          </span>
+                          <span className="text-text-primary">{r.rule_name}</span>
+                        </div>
+                      ))}
+                    </Section>
+
+                    <Section title="Actions">
+                      {detail.trace.actions.map((a, i) => (
+                        <div key={i} className="flex gap-2 items-center py-0.5 text-xs">
+                          <span className={a.ok ? 'text-success' : 'text-danger'}>
+                            {a.ok ? '\u2713' : '\u2717'}
+                          </span>
+                          <span className="text-text-primary">{a.handler}</span>
+                          {a.ref && <span className="text-text-secondary text-[11px]">ref: {a.ref.slice(0, 12)}</span>}
+                          {a.reason && <span className="text-danger text-[11px]">{a.reason}</span>}
+                          {a.duration_ms != null && <span className="text-text-secondary text-[11px] ml-auto">{a.duration_ms}ms</span>}
+                        </div>
+                      ))}
+                    </Section>
+                  </>
+                )}
               </>
             )}
+
+            <Section title="Feedback">
+              <CorrectionForm
+                itemId={itemId}
+                currentLabel={label || null}
+                currentExtracted={extracted}
+              />
+            </Section>
           </div>
         )}
       </div>

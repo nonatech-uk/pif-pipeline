@@ -64,3 +64,12 @@ def register_all(settings: Settings) -> None:
     register(LocationHandler())
     register(ExceptionQueueHandler())
     register(NotifyHandler())
+
+    if settings.services.imap_user and settings.services.imap_password:
+        from pipeline.actions.email_move import EmailMoveHandler
+        register(EmailMoveHandler(
+            host=settings.services.imap_host,
+            port=settings.services.imap_port,
+            user=settings.services.imap_user,
+            password=settings.services.imap_password,
+        ))

@@ -34,6 +34,9 @@ rules:
       - handler: location
         params:
           event_type: flight
+      - handler: email_move
+        params:
+          folder: Pipelined
     on_match: stop
 
   - id: p10-invoice
@@ -47,10 +50,16 @@ rules:
       - handler: paperless
         params:
           document_type: Invoice
-          title: "{{ extracted.date|compact_date }}-{{ extracted.vendor }}"
+          title: "{{ (extracted.date or extracted.start_date)|compact_date }}-{{ extracted.vendor or extracted.merchant or extracted.insurer or extracted._correspondent }}"
       - handler: finance
         params:
           source: pipeline
+      - handler: immich_album
+        params:
+          album_name: Receipts
+      - handler: email_move
+        params:
+          folder: Pipelined
     on_match: stop
 
   - id: p10-receipt
@@ -68,6 +77,12 @@ rules:
       - handler: finance
         params:
           source: pipeline
+      - handler: immich_album
+        params:
+          album_name: Receipts
+      - handler: email_move
+        params:
+          folder: Pipelined
     on_match: stop
 
   # --- Priority 20: Financial documents (stop) ---
@@ -83,6 +98,9 @@ rules:
         params:
           document_type: Bank Statement
           title: "{{ extracted.period_from|compact_date }}-{{ extracted.bank }} Statement"
+      - handler: email_move
+        params:
+          folder: Pipelined
     on_match: stop
 
   - id: p20-insurance
@@ -97,6 +115,9 @@ rules:
         params:
           document_type: Insurance Policy
           title: "{{ extracted.start_date|compact_date }}-{{ extracted.insurer }} {{ extracted.policy_type }}"
+      - handler: email_move
+        params:
+          folder: Pipelined
     on_match: stop
 
   - id: p20-tax
@@ -111,6 +132,9 @@ rules:
         params:
           document_type: Tax Document
           title: "{{ extracted.tax_year }}-{{ extracted.issuer }} {{ extracted.document_type }}"
+      - handler: email_move
+        params:
+          folder: Pipelined
     on_match: stop
 
   # --- Priority 30: Wine (stop) ---

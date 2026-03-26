@@ -2,15 +2,17 @@ import { useState } from 'react'
 import StatsRow from './components/StatsRow'
 import ExceptionQueue from './components/ExceptionQueue'
 import DecisionsList from './components/DecisionsList'
+import CorrectionsPanel from './components/CorrectionsPanel'
 import ItemDrawer from './components/ItemDrawer'
 import RulesList from './components/RulesList'
 import { useStatus } from './api/hooks'
+import type { SelectedItem } from './api/types'
 
 type Tab = 'dashboard' | 'rules'
 
 export default function App() {
   const [tab, setTab] = useState<Tab>('dashboard')
-  const [selectedItem, setSelectedItem] = useState<string | null>(null)
+  const [selectedItem, setSelectedItem] = useState<SelectedItem | null>(null)
   const { data: status } = useStatus()
 
   return (
@@ -37,10 +39,15 @@ export default function App() {
       {tab === 'dashboard' && (
         <>
           {status && <StatsRow status={status} />}
-          <ExceptionQueue onSelect={setSelectedItem} />
-          <DecisionsList onSelect={setSelectedItem} />
+          <ExceptionQueue onSelect={(id) => setSelectedItem({ id, context: 'exception' })} />
+          <CorrectionsPanel />
+          <DecisionsList onSelect={(id) => setSelectedItem({ id, context: 'decision' })} />
           {selectedItem && (
-            <ItemDrawer itemId={selectedItem} onClose={() => setSelectedItem(null)} />
+            <ItemDrawer
+              itemId={selectedItem.id}
+              context={selectedItem.context}
+              onClose={() => setSelectedItem(null)}
+            />
           )}
         </>
       )}

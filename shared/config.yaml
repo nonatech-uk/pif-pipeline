@@ -13,9 +13,9 @@ api_keys:
   paperless: ${PAPERLESS_API_KEY}
 
 services:
-  immich_url: http://127.0.0.1:2283
-  paperless_url: http://172.24.27.255:8000
-  finance_url: http://127.0.0.1:8000
+  immich_url: http://immich-server:2283
+  paperless_url: http://paperless:8000
+  finance_url: http://host.containers.internal:8000
   imap_host: mail.mees.st
   imap_port: 993
   imap_user: "${IMAP_USER}"

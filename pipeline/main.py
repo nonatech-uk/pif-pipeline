@@ -19,7 +19,7 @@ from pipeline.config import load_settings, Settings
 from pipeline.db import init_pool, close_pool
 from pipeline.exceptions.queue import ExceptionItem, ExceptionQueue
 from pipeline.ingest.email import EmailWatcher
-from pipeline.ingest.immich import ImmichWatcher, router as immich_router
+from pipeline.ingest.immich import ImmichWatcher
 from pipeline.ingest.scanner import ScannerWatcher
 from pipeline.models import Envelope
 from pipeline.rules.engine import RulesEngine
@@ -103,8 +103,8 @@ async def process_envelope(envelope: Envelope) -> None:
     else:
         # No rules matched — push to exception queue
         if _exception_queue:
-            classification_output = envelope.classification.model_dump() if envelope.classification else {}
-            envelope_dict = envelope.model_dump(exclude={"raw_bytes"})
+            classification_output = envelope.classification.model_dump(mode="json") if envelope.classification else {}
+            envelope_dict = envelope.model_dump(mode="json", exclude={"raw_bytes"})
             await _exception_queue.add(ExceptionItem(
                 item_id=envelope.id,
                 reason="No rules matched",
@@ -163,7 +163,6 @@ def create_app() -> FastAPI:
 
     app = create_dashboard_app()
     # Add ingest + feedback webhook routes to the same app
-    app.include_router(immich_router)
     app.include_router(feedback_router)
     # Static files must be mounted last — catch-all route
     mount_static(app)

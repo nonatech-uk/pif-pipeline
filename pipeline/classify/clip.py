@@ -10,6 +10,12 @@ from pipeline.classify.base import Classifier
 from pipeline.config import ClipLabel
 from pipeline.models import ClassifyResult, Envelope
 
+try:
+    import pillow_heif
+    pillow_heif.register_heif_opener()
+except ImportError:
+    pass
+
 log = logging.getLogger(__name__)
 
 # Lazy-loaded model components

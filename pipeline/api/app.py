@@ -13,6 +13,7 @@ from pipeline.api.routes_exceptions import router as exceptions_router
 from pipeline.api.routes_decisions import router as decisions_router
 from pipeline.api.routes_corrections import router as corrections_router
 from pipeline.api.routes_retrospective import router as retrospective_router
+from pipeline.api.routes_preview import router as preview_router
 from pipeline.api.routes_rules import router as rules_router
 
 
@@ -31,6 +32,7 @@ def create_dashboard_app() -> FastAPI:
     app.include_router(exceptions_router, prefix="/api")
     app.include_router(decisions_router, prefix="/api")
     app.include_router(corrections_router, prefix="/api")
+    app.include_router(preview_router, prefix="/api")
     app.include_router(retrospective_router, prefix="/api")
     app.include_router(rules_router, prefix="/api")
 

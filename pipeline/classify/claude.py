@@ -30,6 +30,7 @@ class ClaudeClassifier(Classifier):
     """Tier 4: Claude API — vision classify + structured extraction."""
 
     name = "claude"
+    EXTRACTABLE_LABELS = _EXTRACTABLE
 
     def __init__(self, api_key: str, threshold: float = 0.80) -> None:
         self._client = anthropic.Anthropic(api_key=api_key)

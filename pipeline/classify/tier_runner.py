@@ -128,6 +128,26 @@ class TierRunner:
                      tier.name, result.label, result.confidence, duration_ms)
             break
 
+        # If classified by a non-Claude tier but label needs extraction, run Claude extraction
+        if (
+            envelope.classification
+            and envelope.tier_used != "claude"
+            and envelope.classification.label in ClaudeClassifier.EXTRACTABLE_LABELS
+            and not any(k in envelope.extracted for k in ("date", "vendor", "merchant", "amount"))
+        ):
+            claude_tier = next((t for t in self._tiers if isinstance(t, ClaudeClassifier)), None)
+            if claude_tier:
+                t0 = time.monotonic()
+                try:
+                    extracted = await claude_tier._extract_step(envelope, envelope.classification.label)
+                    duration_ms = int((time.monotonic() - t0) * 1000)
+                    if extracted:
+                        envelope.extracted.update(extracted)
+                        log.info("Extraction by claude for %s (%dms)",
+                                 envelope.classification.label, duration_ms)
+                except Exception:
+                    log.exception("Claude extraction failed")
+
         # Second pass: pet recognition if classified as pet_photo
         if (
             envelope.classification

@@ -3,10 +3,45 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 
-from pipeline.api.deps import get_corrections
+from pipeline.api.deps import get_audit_log, get_corrections
+from pipeline.feedback.differ import Correction
 
 router = APIRouter()
+
+
+class ManualCorrectionRequest(BaseModel):
+    item_id: str
+    corrections: list[dict]  # [{field, original, corrected}]
+
+
+@router.post("/corrections")
+async def create_corrections(req: ManualCorrectionRequest):
+    """Create manual corrections from the UI."""
+    audit = get_audit_log()
+    entry = await audit.get_decision_trace(req.item_id)
+    label = entry.label if entry else None
+    tier_used = entry.tier_used if entry else None
+    confidence = entry.confidence if entry else None
+
+    corrections_table = get_corrections()
+    ids = []
+    for c in req.corrections:
+        correction = Correction(
+            correction_type=c.get("field", "unknown"),
+            field=c.get("field", ""),
+            original_value=c.get("original"),
+            corrected_value=c.get("corrected"),
+            item_id=req.item_id,
+            label=label,
+            tier_used=tier_used,
+            confidence=confidence,
+        )
+        row_id = await corrections_table.add(correction)
+        ids.append(row_id)
+
+    return {"ok": True, "ids": ids}
 
 
 @router.get("/corrections")

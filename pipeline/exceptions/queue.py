@@ -54,6 +54,19 @@ class ExceptionQueue:
             item.status,
         )
 
+    async def get(self, item_id: str) -> dict | None:
+        """Get a single exception item as a dict."""
+        pool = get_pool()
+        row = await pool.fetchrow(
+            "SELECT envelope_json FROM exceptions WHERE item_id = $1", item_id,
+        )
+        if not row:
+            return None
+        env = row["envelope_json"]
+        if isinstance(env, str):
+            env = json.loads(env)
+        return {"envelope_json": env}
+
     async def list(
         self, status: str = "pending", limit: int = 50
     ) -> list[ExceptionItem]:

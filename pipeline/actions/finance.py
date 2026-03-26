@@ -37,10 +37,10 @@ class FinanceHandler(ActionHandler):
         payload: dict[str, Any] = {
             "original_filename": envelope.file_name or "unknown",
             "source": params.get("params", params).get("source", "pipeline"),
-            "extracted_date": _normalise_date(extracted.get("date")),
-            "extracted_amount": extracted.get("amount"),
+            "extracted_date": _normalise_date(extracted.get("date") or extracted.get("start_date")),
+            "extracted_amount": extracted.get("amount") or extracted.get("premium") or extracted.get("total"),
             "extracted_currency": extracted.get("currency", "GBP"),
-            "extracted_merchant": extracted.get("vendor") or extracted.get("merchant"),
+            "extracted_merchant": extracted.get("vendor") or extracted.get("merchant") or extracted.get("insurer") or extracted.get("_correspondent"),
         }
 
         # Skip if we don't have the minimum required fields
