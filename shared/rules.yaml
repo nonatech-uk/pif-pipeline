@@ -139,7 +139,7 @@ rules:
 
   # --- Priority 30: Wine (stop) ---
   - id: p30-wine
-    name: Wine label → Paperless
+    name: Wine label → Paperless + Wine DB
     priority: 30
     conditions:
       - type: classification
@@ -150,6 +150,8 @@ rules:
         params:
           document_type: Wine Label
           title: "{{ extracted.vintage }}-{{ extracted.producer }} {{ extracted.wine_name }}"
+      - handler: wine
+        params: {}
     on_match: stop
 
   # --- Priority 50: Geo-tagged photos (continue — pet rules may also fire) ---
@@ -196,6 +198,16 @@ rules:
           tags: [og, cat]
           people: [Og]
     on_match: continue
+
+  # --- Priority 85: Unmatched emails/photos — don't queue as exception ---
+  - id: p85-passthrough
+    name: Unmatched email/camera → ignore
+    priority: 85
+    conditions:
+      - type: source_type
+        value: [email, camera]
+    actions: []
+    on_match: stop
 
   # --- Priority 90: Duplicates (stop) ---
   - id: p90-duplicate

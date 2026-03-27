@@ -93,11 +93,67 @@ class AuditLog:
                       media_type, label, confidence, tier_used,
                       destinations, exception_queued, trace, extracted
                FROM audit_log
+               WHERE exception_queued = FALSE
                ORDER BY timestamp DESC
                LIMIT $1""",
             limit,
         )
         return [_row_to_entry(r) for r in rows]
+
+    async def search(
+        self,
+        source: str | None = None,
+        label: str | None = None,
+        date_from: date | None = None,
+        date_to: date | None = None,
+        hide_ignored: bool = False,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[list[AuditEntry], int]:
+        """Search audit log with filters. Returns (entries, total_count)."""
+        pool = get_pool()
+
+        conditions = []
+        params = []
+        idx = 1
+
+        if source:
+            conditions.append(f"source_type = ${idx}")
+            params.append(source)
+            idx += 1
+        if label:
+            conditions.append(f"label = ${idx}")
+            params.append(label)
+            idx += 1
+        if date_from:
+            conditions.append(f"timestamp::date >= ${idx}")
+            params.append(date_from)
+            idx += 1
+        if date_to:
+            conditions.append(f"timestamp::date <= ${idx}")
+            params.append(date_to)
+            idx += 1
+        if hide_ignored:
+            conditions.append("destinations != '{}'")
+
+        conditions.append("exception_queued = FALSE")
+        where = f"WHERE {' AND '.join(conditions)}"
+
+        total = await pool.fetchval(
+            f"SELECT COUNT(*) FROM audit_log {where}", *params
+        ) or 0
+
+        rows = await pool.fetch(
+            f"""SELECT item_id, timestamp, source_type, source_path, file_sha256,
+                       media_type, label, confidence, tier_used,
+                       destinations, exception_queued, trace, extracted
+                FROM audit_log {where}
+                ORDER BY timestamp DESC
+                LIMIT ${idx} OFFSET ${idx + 1}""",
+            *params, limit, offset,
+        )
+
+        return [_row_to_entry(r) for r in rows], total
 
 
 def _row_to_entry(row) -> AuditEntry:

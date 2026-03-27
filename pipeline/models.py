@@ -28,6 +28,7 @@ class ClassifyResult(BaseModel):
     model: str  # deterministic | clip | llm | claude
     all_labels: dict[str, float] = Field(default_factory=dict)
     extracted: dict[str, Any] = Field(default_factory=dict)
+    needs_escalation: bool = False
 
 
 class ActionResult(BaseModel):

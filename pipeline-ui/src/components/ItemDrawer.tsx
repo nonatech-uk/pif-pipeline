@@ -66,6 +66,22 @@ export default function ItemDrawer({ itemId, context, onClose }: Props) {
               )}
             </Section>
 
+            {(extracted['_correspondent'] || (extracted['_tags'] as string[] | undefined)?.length) && (
+              <Section title="Paperless Metadata">
+                <Row label="Correspondent" value={String(extracted['_correspondent'] ?? '')} />
+                {(extracted['_tags'] as string[] | undefined)?.length && (
+                  <div className="flex justify-between py-0.5 text-[13px]">
+                    <span className="text-text-secondary">Tags</span>
+                    <div className="flex gap-1 flex-wrap justify-end max-w-[60%]">
+                      {(extracted['_tags'] as string[]).map(t => (
+                        <span key={t} className="text-[11px] bg-accent/15 text-accent px-1.5 py-0.5 rounded">{t}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </Section>
+            )}
+
             {Object.keys(extracted).filter(k => !k.startsWith('_')).length > 0 && (
               <Section title="Extracted Fields">
                 {Object.entries(extracted)

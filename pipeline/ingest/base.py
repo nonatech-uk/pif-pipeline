@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import hashlib
+import io
+import logging
 import mimetypes
 from collections.abc import AsyncGenerator
 from datetime import datetime, UTC
@@ -12,6 +14,14 @@ import magic
 import piexif
 
 from pipeline.models import Envelope, ExifData
+
+log = logging.getLogger(__name__)
+
+try:
+    import pillow_heif
+    pillow_heif.register_heif_opener()
+except ImportError:
+    pass
 
 
 class SourceWatcher:
@@ -41,6 +51,19 @@ class SourceWatcher:
 
         # MIME detection — python-magic on the bytes
         media_type = magic.from_buffer(raw_bytes, mime=True)
+
+        # Convert HEIC/HEIF to JPEG so all classifiers can process it
+        if media_type in ("image/heic", "image/heif"):
+            try:
+                from PIL import Image
+                img = Image.open(io.BytesIO(raw_bytes))
+                buf = io.BytesIO()
+                img.convert("RGB").save(buf, format="JPEG", quality=90, exif=img.info.get("exif", b""))
+                raw_bytes = buf.getvalue()
+                media_type = "image/jpeg"
+                log.info("Converted HEIC to JPEG (%d bytes)", len(raw_bytes))
+            except Exception:
+                log.exception("HEIC to JPEG conversion failed")
 
         # Fallback MIME from filename extension
         if media_type == "application/octet-stream" and file_name:

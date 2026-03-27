@@ -62,14 +62,32 @@ async def list_exceptions(status: str = "pending", limit: int = 20) -> str:
 
 
 @mcp.tool
-async def list_decisions(source: str = "all", limit: int = 20) -> str:
-    """List recent pipeline decisions from the audit log.
+async def list_decisions(
+    source: str = "all",
+    label: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    limit: int = 20,
+    offset: int = 0,
+) -> str:
+    """List pipeline decisions from the audit log with optional filters.
 
     Args:
         source: Filter by source — 'all', 'scanner', 'camera', 'email'
+        label: Filter by classification label (e.g. 'boarding_pass', 'receipt')
+        date_from: Start date (YYYY-MM-DD)
+        date_to: End date (YYYY-MM-DD)
         limit: Max items to return (default 20)
+        offset: Skip this many items for pagination
     """
-    resp = await _client().get("/api/decisions", params={"source": source, "limit": limit})
+    params = {"source": source, "limit": limit, "offset": offset}
+    if label:
+        params["label"] = label
+    if date_from:
+        params["date_from"] = date_from
+    if date_to:
+        params["date_to"] = date_to
+    resp = await _client().get("/api/decisions", params=params)
     data = resp.json()
     if not data["items"]:
         return "No decisions found."

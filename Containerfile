@@ -25,8 +25,9 @@ COPY pipeline/ pipeline/
 COPY pipeline_mcp/ pipeline_mcp/
 RUN uv pip install --system --no-cache .
 
-# Copy config files
+# Copy config files and scripts
 COPY shared/ shared/
+COPY scripts/ scripts/
 
 # Copy built UI
 COPY --from=ui-build /ui/dist pipeline-ui/dist/

@@ -126,6 +126,11 @@ class TierRunner:
 
             log.info("Classified by %s: %s @ %.2f (%dms)",
                      tier.name, result.label, result.confidence, duration_ms)
+
+            if result.needs_escalation:
+                log.info("Marginal confidence — escalating to next tier for verification")
+                continue
+
             break
 
         # If classified by a non-Claude tier but label needs extraction, run Claude extraction

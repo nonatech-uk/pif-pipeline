@@ -59,6 +59,7 @@ class TiersConfig(BaseSettings):
 
 class ClipLabel(BaseSettings):
     threshold: float = 0.75
+    escalate_above: float = 0.85  # below this, escalate to Claude for verification
 
 
 class Settings(BaseSettings):

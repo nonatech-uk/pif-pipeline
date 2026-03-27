@@ -20,8 +20,23 @@ export default function CorrectionForm({ itemId, currentLabel, currentExtracted 
     String(currentExtracted?.['_correspondent'] ?? '')
   )
   const [docType, setDocType] = useState('')
+  const currentTags = (currentExtracted?.['_tags'] as string[] | undefined) ?? []
+  const [tags, setTags] = useState<string[]>(currentTags)
+  const [newTag, setNewTag] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const create = useCreateCorrection()
+
+  const addTag = () => {
+    const t = newTag.trim()
+    if (t && !tags.includes(t)) {
+      setTags([...tags, t])
+    }
+    setNewTag('')
+  }
+
+  const removeTag = (tag: string) => {
+    setTags(tags.filter(t => t !== tag))
+  }
 
   const handleSubmit = () => {
     const corrections: { field: string; original: string; corrected: string }[] = []
@@ -38,6 +53,16 @@ export default function CorrectionForm({ itemId, currentLabel, currentExtracted 
     }
     if (docType) {
       corrections.push({ field: 'document_type', original: '', corrected: docType })
+    }
+
+    // Tag changes
+    const added = tags.filter(t => !currentTags.includes(t))
+    const removed = currentTags.filter(t => !tags.includes(t))
+    for (const t of added) {
+      corrections.push({ field: 'tag_added', original: '', corrected: t })
+    }
+    for (const t of removed) {
+      corrections.push({ field: 'tag_removed', original: t, corrected: '' })
     }
 
     if (corrections.length === 0) return
@@ -69,7 +94,7 @@ export default function CorrectionForm({ itemId, currentLabel, currentExtracted 
   return (
     <div className="space-y-2.5 bg-bg-hover rounded p-3 border border-border">
       <div>
-        <label className="text-[11px] text-text-secondary block mb-0.5">Label</label>
+        <label className="block text-[11px] text-text-secondary mb-0.5">Label</label>
         <select
           value={label}
           onChange={(e) => setLabel(e.target.value)}
@@ -83,7 +108,7 @@ export default function CorrectionForm({ itemId, currentLabel, currentExtracted 
       </div>
 
       <div>
-        <label className="text-[11px] text-text-secondary block mb-0.5">Correspondent</label>
+        <label className="block text-[11px] text-text-secondary mb-0.5">Correspondent</label>
         <input
           type="text"
           value={correspondent}
@@ -94,7 +119,7 @@ export default function CorrectionForm({ itemId, currentLabel, currentExtracted 
       </div>
 
       <div>
-        <label className="text-[11px] text-text-secondary block mb-0.5">Document type</label>
+        <label className="block text-[11px] text-text-secondary mb-0.5">Document type</label>
         <input
           type="text"
           value={docType}
@@ -102,6 +127,42 @@ export default function CorrectionForm({ itemId, currentLabel, currentExtracted 
           className="w-full text-xs bg-bg-primary border border-border rounded px-2 py-1.5 text-text-primary"
           placeholder="e.g. Invoice"
         />
+      </div>
+
+      <div>
+        <label className="block text-[11px] text-text-secondary mb-0.5">Tags</label>
+        <div className="flex gap-1 flex-wrap mb-1.5">
+          {tags.map(t => (
+            <span
+              key={t}
+              className="text-[11px] bg-accent/15 text-accent px-1.5 py-0.5 rounded flex items-center gap-1"
+            >
+              {t}
+              <button
+                onClick={() => removeTag(t)}
+                className="bg-transparent border-none text-accent/60 hover:text-danger cursor-pointer text-xs px-0"
+              >
+                &times;
+              </button>
+            </span>
+          ))}
+        </div>
+        <div className="flex gap-1">
+          <input
+            type="text"
+            value={newTag}
+            onChange={(e) => setNewTag(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTag() } }}
+            className="flex-1 text-xs bg-bg-primary border border-border rounded px-2 py-1 text-text-primary"
+            placeholder="Add tag..."
+          />
+          <button
+            onClick={addTag}
+            className="text-xs bg-bg-primary border border-border rounded px-2 py-1 text-text-secondary hover:text-text-primary cursor-pointer"
+          >
+            +
+          </button>
+        </div>
       </div>
 
       <div className="flex gap-2 pt-1">

@@ -97,6 +97,16 @@ class CLIPClassifier(Classifier):
         log.info("CLIP top: %s @ %.3f (threshold %.2f)", top_name, top_score, threshold)
 
         if top_score >= threshold:
+            escalate_above = self._labels[top_name].escalate_above
+            if top_score < escalate_above:
+                log.info("CLIP marginal (%.3f < %.2f), flagging for escalation", top_score, escalate_above)
+                return ClassifyResult(
+                    label=top_name,
+                    confidence=top_score,
+                    model=self.name,
+                    all_labels=scores,
+                    needs_escalation=True,
+                )
             return ClassifyResult(
                 label=top_name,
                 confidence=top_score,

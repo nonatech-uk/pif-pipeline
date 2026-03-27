@@ -20,23 +20,36 @@ interface Props {
 
 export default function DecisionsList({ onSelect }: Props) {
   const [source, setSource] = useState('all')
+  const [hideIgnored, setHideIgnored] = useState(true)
   const { data } = useDecisions(source)
-  const items = data?.items ?? []
+  const allItems = data?.items ?? []
+  const items = hideIgnored ? allItems.filter(i => i.destinations.length > 0) : allItems
 
   return (
     <section className="mb-7">
       <div className="flex justify-between items-center mb-2.5">
         <h2 className="text-base font-semibold text-text-primary">Decisions</h2>
-        <select
-          className="text-xs px-2 py-1 bg-bg-secondary text-text-primary border border-border rounded"
-          value={source}
-          onChange={(e) => setSource(e.target.value)}
-        >
-          <option value="all">All sources</option>
-          <option value="scanner">Scanner</option>
-          <option value="camera">Camera</option>
-          <option value="email">Email</option>
-        </select>
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-1.5 text-xs text-text-secondary cursor-pointer">
+            <input
+              type="checkbox"
+              checked={hideIgnored}
+              onChange={(e) => setHideIgnored(e.target.checked)}
+              className="rounded"
+            />
+            Hide ignored
+          </label>
+          <select
+            className="text-xs px-2 py-1 bg-bg-secondary text-text-primary border border-border rounded"
+            value={source}
+            onChange={(e) => setSource(e.target.value)}
+          >
+            <option value="all">All sources</option>
+            <option value="scanner">Scanner</option>
+            <option value="camera">Camera</option>
+            <option value="email">Email</option>
+          </select>
+        </div>
       </div>
 
       <div className="flex flex-col gap-1">
@@ -72,6 +85,9 @@ export default function DecisionsList({ onSelect }: Props) {
                     {item.tier_used}
                   </span>
                 )}
+                {(item.extracted?.['_tags'] as string[] | undefined)?.map(t => (
+                  <span key={t} className="text-[10px] bg-accent/15 text-accent px-1 py-0.5 rounded">{t}</span>
+                ))}
               </div>
             </div>
             <div className="flex gap-1 flex-wrap">

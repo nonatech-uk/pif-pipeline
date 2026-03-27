@@ -5,10 +5,11 @@ import DecisionsList from './components/DecisionsList'
 import CorrectionsPanel from './components/CorrectionsPanel'
 import ItemDrawer from './components/ItemDrawer'
 import RulesList from './components/RulesList'
+import HistoryView from './components/HistoryView'
 import { useStatus } from './api/hooks'
 import type { SelectedItem } from './api/types'
 
-type Tab = 'dashboard' | 'rules'
+type Tab = 'dashboard' | 'history' | 'rules'
 
 export default function App() {
   const [tab, setTab] = useState<Tab>('dashboard')
@@ -23,6 +24,9 @@ export default function App() {
           <nav className="flex gap-1">
             <TabButton active={tab === 'dashboard'} onClick={() => setTab('dashboard')}>
               Dashboard
+            </TabButton>
+            <TabButton active={tab === 'history'} onClick={() => setTab('history')}>
+              History
             </TabButton>
             <TabButton active={tab === 'rules'} onClick={() => setTab('rules')}>
               Rules
@@ -42,6 +46,19 @@ export default function App() {
           <ExceptionQueue onSelect={(id) => setSelectedItem({ id, context: 'exception' })} />
           <CorrectionsPanel />
           <DecisionsList onSelect={(id) => setSelectedItem({ id, context: 'decision' })} />
+          {selectedItem && (
+            <ItemDrawer
+              itemId={selectedItem.id}
+              context={selectedItem.context}
+              onClose={() => setSelectedItem(null)}
+            />
+          )}
+        </>
+      )}
+
+      {tab === 'history' && (
+        <>
+          <HistoryView onSelect={(id) => setSelectedItem({ id, context: 'decision' })} />
           {selectedItem && (
             <ItemDrawer
               itemId={selectedItem.id}

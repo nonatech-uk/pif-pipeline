@@ -43,7 +43,8 @@ class DeterministicClassifier(Classifier):
                     model=self.name,
                 )
 
-        # 2. GPS present on an image → geo_tagged
+        # 2. GPS present on an image → geo_tagged (soft — escalate so CLIP/Claude
+        #    can override with a more specific label like boarding_pass or receipt)
         if (
             envelope.exif
             and envelope.exif.gps_lat is not None
@@ -56,6 +57,7 @@ class DeterministicClassifier(Classifier):
                 label="geo_tagged",
                 confidence=1.0,
                 model=self.name,
+                needs_escalation=True,
             )
 
         # 3. Filename pattern matching

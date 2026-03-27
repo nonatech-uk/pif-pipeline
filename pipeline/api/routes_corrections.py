@@ -39,6 +39,7 @@ async def create_corrections(req: ManualCorrectionRequest):
             confidence=confidence,
         )
         row_id = await corrections_table.add(correction)
+        await corrections_table.accept(row_id)
         ids.append(row_id)
 
     return {"ok": True, "ids": ids}

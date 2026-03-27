@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from datetime import date
+
+from fastapi import APIRouter, HTTPException, Query
 
 from pipeline.api.deps import get_audit_log
 
@@ -10,13 +12,26 @@ router = APIRouter()
 
 
 @router.get("/decisions")
-async def list_decisions(source: str = "all", limit: int = 50):
-    """List recent decisions from the audit log."""
+async def list_decisions(
+    source: str = "all",
+    label: str | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    hide_ignored: bool = False,
+    limit: int = 50,
+    offset: int = 0,
+):
+    """List decisions from the audit log with optional filters."""
     audit = get_audit_log()
-    entries = await audit.recent(limit=limit)
-
-    if source != "all":
-        entries = [e for e in entries if e.source_type == source]
+    entries, total = await audit.search(
+        source=source if source != "all" else None,
+        label=label,
+        date_from=date_from,
+        date_to=date_to,
+        hide_ignored=hide_ignored,
+        limit=limit,
+        offset=offset,
+    )
 
     return {
         "items": [
@@ -36,8 +51,21 @@ async def list_decisions(source: str = "all", limit: int = 50):
             }
             for e in entries
         ],
-        "total": len(entries),
+        "total": total,
+        "limit": limit,
+        "offset": offset,
     }
+
+
+@router.get("/decisions/labels")
+async def list_labels():
+    """Get distinct labels from the audit log."""
+    audit = get_audit_log()
+    pool = __import__("pipeline.db", fromlist=["get_pool"]).get_pool()
+    rows = await pool.fetch(
+        "SELECT DISTINCT label FROM audit_log WHERE label IS NOT NULL ORDER BY label"
+    )
+    return {"labels": [r["label"] for r in rows]}
 
 
 @router.get("/decisions/{item_id}")
