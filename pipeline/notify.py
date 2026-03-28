@@ -55,12 +55,10 @@ class Notifier:
         message: str,
         priority: Priority = Priority.NORMAL,
     ) -> None:
-        """Send notification to all configured channels."""
+        """Send notification via Pushover."""
         if self.pushover_enabled:
             await self._send_pushover(title, message, priority)
-        if self.email_enabled:
-            self._send_email(title, message)
-        if not self.pushover_enabled and not self.email_enabled:
+        else:
             log.warning("No notification channels configured")
 
     async def _send_pushover(

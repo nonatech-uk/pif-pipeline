@@ -199,6 +199,23 @@ rules:
           people: [Og]
     on_match: continue
 
+  # --- Priority 84: Duplicates (stop) ---
+  - id: p84-duplicate
+    name: Duplicate → discard
+    priority: 84
+    conditions:
+      - type: classification
+        label: duplicate
+    actions:
+      - handler: notify
+        params:
+          message: "Duplicate detected: {{ file.name }}"
+      - handler: email_move
+        params:
+          folder: Pipelined
+          subject_prefix: "(Duplicate)"
+    on_match: stop
+
   # --- Priority 85: Unmatched emails/photos — don't queue as exception ---
   - id: p85-passthrough
     name: Unmatched email/camera → ignore
@@ -207,17 +224,4 @@ rules:
       - type: source_type
         value: [email, camera]
     actions: []
-    on_match: stop
-
-  # --- Priority 90: Duplicates (stop) ---
-  - id: p90-duplicate
-    name: Duplicate → discard
-    priority: 90
-    conditions:
-      - type: classification
-        label: duplicate
-    actions:
-      - handler: notify
-        params:
-          message: "Duplicate detected: {{ file.name }}"
     on_match: stop

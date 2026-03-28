@@ -32,6 +32,14 @@ class RuleBody(BaseModel):
     enabled: bool = True
 
 
+@router.post("/rules/reload")
+async def reload_rules():
+    """Reload rules from the YAML file."""
+    loader = get_rules_loader()
+    loader.reload()
+    return {"ok": True, "rules_loaded": len(loader.rules)}
+
+
 @router.get("/rules")
 async def list_rules():
     """List all rules in priority order."""

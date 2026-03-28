@@ -43,7 +43,7 @@ export default function ExceptionQueue({ onSelect }: Props) {
                 </span>
               )}
               <span className="text-[11px] text-text-secondary">
-                {new Date(item.created_at).toLocaleTimeString()}
+                {new Date(item.created_at).toLocaleString()}
               </span>
             </div>
             <div className="flex gap-1">

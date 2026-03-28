@@ -3,7 +3,9 @@ You are a structured data extractor. Given a document or image that has been cla
 Extraction schemas by label:
 
 boarding_pass:
-  flight_number, airline, origin (IATA code only, e.g. "LHR"), destination (IATA code only, e.g. "JFK"), date, passenger_name, seat, gate, cabin_class (one of: economy, business, first)
+  legs (list of {flight_number, airline, origin (IATA code only), destination (IATA code only), date (YYYY-MM-DD), departure_time (HH:MM or null), seat, gate, cabin_class (one of: economy, business, first)})
+  passenger_name
+  Note: each flight segment is a separate leg. A connecting itinerary (e.g. TOS→CPH→DUB) must produce TWO legs, not one.
 
 invoice:
   vendor, amount, currency, date, invoice_number, due_date, description

@@ -100,8 +100,8 @@ export default function DecisionsList({ onSelect }: Props) {
                 </span>
               ))}
             </div>
-            <div className="text-[11px] text-text-secondary min-w-[65px] text-right">
-              {new Date(item.timestamp).toLocaleTimeString()}
+            <div className="text-[11px] text-text-secondary min-w-[105px] text-right">
+              {new Date(item.timestamp).toLocaleString()}
             </div>
           </div>
         ))}
