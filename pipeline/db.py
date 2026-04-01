@@ -18,6 +18,7 @@ async def init_pool(dsn: str) -> asyncpg.Pool:
 
     async with _pool.acquire() as conn:
         await conn.execute(_SCHEMA)
+        await conn.execute(_MIGRATIONS)
     log.info("Database pool ready (%s)", dsn.split("@")[-1] if "@" in dsn else dsn)
     return _pool
 
@@ -98,4 +99,15 @@ CREATE TABLE IF NOT EXISTS audit_log (
 CREATE INDEX IF NOT EXISTS idx_audit_log_item_id ON audit_log(item_id);
 CREATE INDEX IF NOT EXISTS idx_audit_log_timestamp ON audit_log(timestamp);
 CREATE INDEX IF NOT EXISTS idx_audit_log_sha256 ON audit_log(file_sha256);
+
+CREATE TABLE IF NOT EXISTS email_ignore_senders (
+    id SERIAL PRIMARY KEY,
+    address TEXT NOT NULL UNIQUE,
+    note TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+"""
+
+_MIGRATIONS = """
+ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;
 """

@@ -11,6 +11,7 @@ Classify the provided image or document into exactly ONE of these labels:
 - pet_photo — a photo primarily featuring a pet animal
 - landscape — a scenic/landscape/travel photograph
 - geo_tagged — a geotagged photo (use only if no better label fits)
+- marketing — a promotional or marketing email, newsletter, or advertising material
 - document — a generic document that doesn't fit ANY of the above categories
 
 IMPORTANT: Always prefer a specific label over "document". If the image contains ANY recognisable specific document type (receipt, boarding pass, invoice, etc.), use that label even if the image quality is poor or only part of the document is visible. "document" is a last resort.

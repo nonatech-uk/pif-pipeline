@@ -90,9 +90,26 @@ export interface CorrectionItem {
   created_at: string
 }
 
+export interface ArchiveResult {
+  archived_count: number
+  emails: {
+    moved_to_archive: number
+    already_moved: { item_id: string; folder: string }[]
+    deleted: number
+  }
+  suggestions: { sender: string; count: number }[]
+}
+
 export interface SelectedItem {
   id: string
   context: 'decision' | 'exception'
+}
+
+export interface IgnoreSender {
+  id: number
+  address: string
+  note: string
+  created_at: string
 }
 
 export interface Rule {

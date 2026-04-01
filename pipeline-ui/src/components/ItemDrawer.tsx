@@ -1,4 +1,5 @@
-import { useDecisionDetail, useExceptionDetail } from '../api/hooks'
+import { useState } from 'react'
+import { useDecisionDetail, useExceptionDetail, useIgnoreSenderFromItem } from '../api/hooks'
 import DocumentPreview from './DocumentPreview'
 import CorrectionForm from './CorrectionForm'
 
@@ -9,6 +10,8 @@ interface Props {
 }
 
 export default function ItemDrawer({ itemId, context, onClose }: Props) {
+  const ignoreSender = useIgnoreSenderFromItem()
+  const [ignoreResult, setIgnoreResult] = useState<{ address: string; moved_back: boolean } | null>(null)
   const decision = useDecisionDetail(context === 'decision' ? itemId : null)
   const exception = useExceptionDetail(context === 'exception' ? itemId : null)
 
@@ -23,6 +26,9 @@ export default function ItemDrawer({ itemId, context, onClose }: Props) {
   const mediaType = detail?.media_type ?? String(envelope?.media_type ?? '')
   const label = detail?.label ?? String(classification?.label ?? '')
   const extracted = detail?.extracted ?? (envelope?.extracted as Record<string, unknown>) ?? {}
+  const sourceType = detail?.source_type ?? String(envelope?.source_type ?? '')
+  const isEmail = sourceType === 'email'
+  const emailFrom = String(envelope?.source_email_from ?? '')
 
   return (
     <div className="fixed inset-0 bg-black/50 flex justify-end z-50" onClick={onClose}>
@@ -158,6 +164,31 @@ export default function ItemDrawer({ itemId, context, onClose }: Props) {
                 currentExtracted={extracted}
               />
             </Section>
+
+            {isEmail && (
+              <Section title="Sender">
+                {emailFrom && <Row label="From" value={emailFrom} />}
+                {ignoreResult ? (
+                  <div className="text-xs text-success mt-1">
+                    Added {ignoreResult.address} to ignore list
+                    {ignoreResult.moved_back && ' — email moved back to INBOX'}
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => ignoreSender.mutate(itemId, {
+                      onSuccess: (data) => setIgnoreResult(data),
+                    })}
+                    disabled={ignoreSender.isPending}
+                    className="mt-1 text-xs px-3 py-1.5 bg-danger/15 text-danger border border-danger/30 rounded hover:bg-danger/25 disabled:opacity-50 transition-colors cursor-pointer"
+                  >
+                    {ignoreSender.isPending ? 'Processing...' : 'Ignore Sender'}
+                  </button>
+                )}
+                {ignoreSender.isError && (
+                  <div className="text-xs text-danger mt-1">{ignoreSender.error.message}</div>
+                )}
+              </Section>
+            )}
           </div>
         )}
       </div>

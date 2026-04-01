@@ -120,6 +120,9 @@ async def process_envelope(envelope: Envelope) -> None:
 
     # --- Step 4: Write audit log ---
     if _audit_log:
+        audit_extracted = dict(envelope.extracted)
+        if envelope.source_email_from:
+            audit_extracted["_email_from"] = envelope.source_email_from
         entry = AuditEntry(
             item_id=envelope.id,
             source_type=envelope.source_type,
@@ -136,7 +139,7 @@ async def process_envelope(envelope: Envelope) -> None:
                 rules=rule_traces,
                 actions=action_traces,
             ),
-            extracted=envelope.extracted,
+            extracted=audit_extracted,
         )
         await _audit_log.write(entry)
         log.info("AUDIT  written for %s → %s", envelope.id[:8], destinations)

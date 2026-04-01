@@ -6,10 +6,11 @@ import CorrectionsPanel from './components/CorrectionsPanel'
 import ItemDrawer from './components/ItemDrawer'
 import RulesList from './components/RulesList'
 import HistoryView from './components/HistoryView'
+import SettingsPanel from './components/SettingsPanel'
 import { useStatus } from './api/hooks'
 import type { SelectedItem } from './api/types'
 
-type Tab = 'dashboard' | 'history' | 'rules'
+type Tab = 'dashboard' | 'history' | 'rules' | 'settings'
 
 export default function App() {
   const [tab, setTab] = useState<Tab>('dashboard')
@@ -30,6 +31,9 @@ export default function App() {
             </TabButton>
             <TabButton active={tab === 'rules'} onClick={() => setTab('rules')}>
               Rules
+            </TabButton>
+            <TabButton active={tab === 'settings'} onClick={() => setTab('settings')}>
+              Settings
             </TabButton>
           </nav>
         </div>
@@ -70,6 +74,8 @@ export default function App() {
       )}
 
       {tab === 'rules' && <RulesList />}
+
+      {tab === 'settings' && <SettingsPanel />}
     </div>
   )
 }

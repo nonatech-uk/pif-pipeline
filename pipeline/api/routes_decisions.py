@@ -2,12 +2,21 @@
 
 from __future__ import annotations
 
+import asyncio
+import imaplib
+import json
+import logging
+import re
+from collections import Counter
 from datetime import date
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 
-from pipeline.api.deps import get_audit_log
+from pipeline.api.deps import get_audit_log, get_settings
+from pipeline.db import get_pool
 
+log = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -18,6 +27,7 @@ async def list_decisions(
     date_from: date | None = None,
     date_to: date | None = None,
     hide_ignored: bool = False,
+    archived: bool | None = None,
     limit: int = 50,
     offset: int = 0,
 ):
@@ -29,6 +39,7 @@ async def list_decisions(
         date_from=date_from,
         date_to=date_to,
         hide_ignored=hide_ignored,
+        archived=archived,
         limit=limit,
         offset=offset,
     )
@@ -126,3 +137,174 @@ async def get_decision(item_id: str):
             ],
         },
     }
+
+
+@router.post("/decisions/archive")
+async def archive_decisions() -> dict[str, Any]:
+    """Archive all unarchived decisions, move Pipelined emails to Archive, learn from dispositions."""
+    audit = get_audit_log()
+    items = await audit.archive_all()
+
+    if not items:
+        return {"archived_count": 0, "emails": {}, "suggestions": []}
+
+    # Separate email items
+    email_items = []
+    for item in items:
+        if item["source_type"] != "email":
+            continue
+        sp = item.get("source_path") or ""
+        if not sp.startswith("email://"):
+            continue
+        message_id = sp.removeprefix("email://").rsplit("/", 1)[0]
+        if not message_id:
+            continue
+        extracted = item.get("extracted")
+        if isinstance(extracted, str):
+            extracted = json.loads(extracted)
+        sender = (extracted or {}).get("_email_from", "")
+        email_items.append({"item_id": item["item_id"], "message_id": message_id, "sender": sender})
+
+    # Check IMAP dispositions and move remaining to Archive
+    email_summary = {"moved_to_archive": 0, "already_moved": [], "deleted": 0}
+    suggestions: list[dict] = []
+
+    if email_items:
+        dispositions = await _check_and_archive_emails(email_items)
+        deleted_senders: list[str] = []
+
+        for d in dispositions:
+            if d["disposition"] == "archived":
+                email_summary["moved_to_archive"] += 1
+            elif d["disposition"] == "deleted":
+                email_summary["deleted"] += 1
+                if d.get("sender"):
+                    deleted_senders.append(d["sender"])
+            elif d["disposition"].startswith("moved:"):
+                folder = d["disposition"].removeprefix("moved:")
+                email_summary["already_moved"].append({"item_id": d["item_id"], "folder": folder})
+
+        # Suggest ignore rules for senders with 2+ deleted emails
+        sender_counts = Counter(s for s in deleted_senders if s)
+        pool = get_pool()
+        for sender, count in sender_counts.items():
+            if count >= 2:
+                # Extract just the email address
+                match = re.search(r"<([^>]+)>", sender)
+                address = match.group(1).lower() if match else sender.strip().lower()
+                # Check not already ignored
+                existing = await pool.fetchval(
+                    "SELECT 1 FROM email_ignore_senders WHERE address = $1", address
+                )
+                if not existing:
+                    await pool.execute(
+                        """INSERT INTO corrections (correction_type, field, original_value, corrected_value, proposed_action)
+                           VALUES ($1, $2, $3, $4, $5)""",
+                        "sender_ignored",
+                        "source_email_from",
+                        sender,
+                        "ignore",
+                        json.dumps({
+                            "action_type": "add_ignore_sender",
+                            "description": f"Add {address} to ignore list ({count} emails deleted from Pipelined)",
+                        }),
+                    )
+                    suggestions.append({"sender": address, "count": count})
+
+    return {
+        "archived_count": len(items),
+        "emails": email_summary,
+        "suggestions": suggestions,
+    }
+
+
+async def _check_and_archive_emails(
+    email_items: list[dict],
+) -> list[dict]:
+    """Check where emails are now and move remaining Pipelined ones to Archive."""
+    settings = get_settings()
+    if not settings.services.imap_user or not settings.services.imap_password:
+        return []
+
+    def _do_check() -> list[dict]:
+        conn = imaplib.IMAP4_SSL(settings.services.imap_host, settings.services.imap_port)
+        results = []
+        try:
+            conn.login(settings.services.imap_user, settings.services.imap_password)
+
+            # List all folders for searching
+            _, folder_data = conn.list()
+            all_folders = []
+            for line in (folder_data or []):
+                if isinstance(line, bytes):
+                    # Parse IMAP LIST response: (flags) "delimiter" "name"
+                    match = re.search(rb'"[^"]*"\s+"?([^"]+)"?$', line)
+                    if match:
+                        all_folders.append(match.group(1).decode("utf-8"))
+            # Filter out system folders we don't need to search
+            skip_folders = {"Sent", "Drafts", "Junk", "Outbox"}
+            search_folders = [f for f in all_folders if f not in skip_folders]
+
+            # Ensure Archive folder exists
+            try:
+                conn.select("Archive")
+                conn.close()
+            except imaplib.IMAP4.error:
+                conn.create("Archive")
+                conn.subscribe("Archive")
+                log.info("Created IMAP folder: Archive")
+
+            for item in email_items:
+                mid = item["message_id"]
+                item_id = item["item_id"]
+                sender = item.get("sender", "")
+                disposition = "deleted"  # default if not found anywhere
+
+                # Check Pipelined first
+                try:
+                    conn.select("Pipelined")
+                    _, data = conn.uid("SEARCH", None, "HEADER", "Message-ID", mid)
+                    if data and data[0]:
+                        # Still in Pipelined — move to Archive
+                        uids = data[0].split()
+                        for uid in uids:
+                            typ, _ = conn.uid("MOVE", uid, "Archive")
+                            if typ != "OK":
+                                conn.uid("COPY", uid, "Archive")
+                                conn.uid("STORE", uid, "+FLAGS", "\\Deleted")
+                        conn.expunge()
+                        results.append({"item_id": item_id, "disposition": "archived", "sender": sender})
+                        continue
+                except imaplib.IMAP4.error:
+                    pass
+
+                # Not in Pipelined — search other folders
+                for folder in search_folders:
+                    if folder == "Pipelined":
+                        continue
+                    try:
+                        conn.select(folder)
+                        _, data = conn.uid("SEARCH", None, "HEADER", "Message-ID", mid)
+                        if data and data[0]:
+                            if folder in ("Trash", "Deleted Items", "Deleted Messages"):
+                                disposition = "deleted"
+                            else:
+                                disposition = f"moved:{folder}"
+                            break
+                    except imaplib.IMAP4.error:
+                        continue
+
+                results.append({"item_id": item_id, "disposition": disposition, "sender": sender})
+
+        except Exception:
+            log.exception("IMAP archive check failed")
+        finally:
+            try:
+                conn.logout()
+            except Exception:
+                pass
+
+        return results
+
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(None, _do_check)

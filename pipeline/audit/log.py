@@ -107,10 +107,14 @@ class AuditLog:
         date_from: date | None = None,
         date_to: date | None = None,
         hide_ignored: bool = False,
+        archived: bool | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> tuple[list[AuditEntry], int]:
-        """Search audit log with filters. Returns (entries, total_count)."""
+        """Search audit log with filters. Returns (entries, total_count).
+
+        archived: None=all, False=unarchived only, True=archived only.
+        """
         pool = get_pool()
 
         conditions = []
@@ -135,6 +139,10 @@ class AuditLog:
             idx += 1
         if hide_ignored:
             conditions.append("destinations != '{}'")
+        if archived is False:
+            conditions.append("archived_at IS NULL")
+        elif archived is True:
+            conditions.append("archived_at IS NOT NULL")
 
         conditions.append("exception_queued = FALSE")
         where = f"WHERE {' AND '.join(conditions)}"
@@ -154,6 +162,17 @@ class AuditLog:
         )
 
         return [_row_to_entry(r) for r in rows], total
+
+    async def archive_all(self) -> list[dict]:
+        """Archive all non-archived entries. Returns list of archived items."""
+        pool = get_pool()
+        rows = await pool.fetch(
+            """UPDATE audit_log
+               SET archived_at = now()
+               WHERE archived_at IS NULL
+               RETURNING item_id, source_type, source_path, extracted""",
+        )
+        return [dict(r) for r in rows]
 
 
 def _row_to_entry(row) -> AuditEntry:

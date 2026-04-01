@@ -136,11 +136,23 @@ class EmailWatcher(SourceWatcher):
         self._password = password
         self._folder = folder
         self._poll_interval = poll_interval
+        self._ignored_senders: set[str] = set()
 
     async def _ensure_table(self) -> None:
         pool = get_pool()
         async with pool.acquire() as conn:
             await conn.execute(_TABLE_SCHEMA)
+
+    async def _refresh_ignored_senders(self) -> None:
+        """Load the ignore list from DB (called once per poll cycle)."""
+        pool = get_pool()
+        rows = await pool.fetch("SELECT address FROM email_ignore_senders")
+        self._ignored_senders = {r["address"] for r in rows}
+
+    def _is_ignored_sender(self, from_addr: str) -> bool:
+        """Check if a From header matches any ignored sender address."""
+        from_lower = from_addr.lower()
+        return any(addr in from_lower for addr in self._ignored_senders)
 
     async def _is_processed(self, message_id: str) -> bool:
         pool = get_pool()
@@ -184,6 +196,7 @@ class EmailWatcher(SourceWatcher):
 
     async def _poll(self) -> list[Envelope]:
         """Fetch and parse new emails. Returns list of envelopes."""
+        await self._refresh_ignored_senders()
         loop = asyncio.get_running_loop()
         envelopes: list[Envelope] = []
 
@@ -245,6 +258,10 @@ class EmailWatcher(SourceWatcher):
         subject = _decode_header(msg.get("Subject", ""))
         log.info("Email from %s: %s", from_addr, subject)
 
+        if self._is_ignored_sender(from_addr):
+            log.info("Skipping ignored sender: %s", from_addr)
+            return
+
         attachment_count = 0
         for part in msg.walk():
             content_type = part.get_content_type()
@@ -294,11 +311,16 @@ class EmailWatcher(SourceWatcher):
                 yield envelope
             else:
                 raw_bytes = text.encode("utf-8")
+                label = (
+                    f"{subject} ({from_addr})" if subject
+                    else f"Email ({from_addr})" if from_addr
+                    else "body.txt"
+                )
                 envelope = self._build_envelope(
                     raw_bytes,
                     source_type=self.source_type,
-                    source_path=f"email://{message_id}/body.txt",
-                    file_name="body.txt",
+                    source_path=f"email://{message_id}/{label}",
+                    file_name=label,
                     source_email_from=from_addr,
                     source_email_subject=subject,
                 )

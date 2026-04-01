@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { useDecisions } from '../api/hooks'
+import { useDecisions, useArchiveDecisions } from '../api/hooks'
+import type { ArchiveResult } from '../api/types'
 
 const TIER_COLORS: Record<string, string> = {
   deterministic: 'text-tier-deterministic',
@@ -21,7 +22,9 @@ interface Props {
 export default function DecisionsList({ onSelect }: Props) {
   const [source, setSource] = useState('all')
   const [hideIgnored, setHideIgnored] = useState(true)
-  const { data } = useDecisions(source)
+  const { data } = useDecisions(source, false)
+  const archive = useArchiveDecisions()
+  const [archiveResult, setArchiveResult] = useState<ArchiveResult | null>(null)
   const allItems = data?.items ?? []
   const items = hideIgnored ? allItems.filter(i => i.destinations.length > 0) : allItems
 
@@ -49,8 +52,43 @@ export default function DecisionsList({ onSelect }: Props) {
             <option value="camera">Camera</option>
             <option value="email">Email</option>
           </select>
+          {allItems.length > 0 && (
+            <button
+              onClick={() => archive.mutate(undefined, {
+                onSuccess: (data) => setArchiveResult(data),
+              })}
+              disabled={archive.isPending}
+              className="text-xs px-3 py-1 bg-accent text-white rounded hover:bg-accent/80 disabled:opacity-50 transition-colors"
+            >
+              {archive.isPending ? 'Archiving...' : 'Archive'}
+            </button>
+          )}
         </div>
       </div>
+
+      {archiveResult && (
+        <div className="mb-3 p-3 bg-success/10 border border-success/30 rounded-md text-xs text-text-primary">
+          <div className="font-medium mb-1">Archived {archiveResult.archived_count} decisions</div>
+          {(archiveResult.emails.moved_to_archive > 0 || archiveResult.emails.deleted > 0) && (
+            <div className="text-text-secondary">
+              {archiveResult.emails.moved_to_archive > 0 && <span>{archiveResult.emails.moved_to_archive} emails moved to Archive. </span>}
+              {archiveResult.emails.deleted > 0 && <span>{archiveResult.emails.deleted} emails no longer in Pipelined. </span>}
+              {archiveResult.emails.already_moved.length > 0 && <span>{archiveResult.emails.already_moved.length} manually moved. </span>}
+            </div>
+          )}
+          {archiveResult.suggestions.length > 0 && (
+            <div className="mt-1 text-accent">
+              Suggested {archiveResult.suggestions.length} sender(s) to ignore — check Corrections panel.
+            </div>
+          )}
+          <button
+            onClick={() => setArchiveResult(null)}
+            className="mt-1 text-[11px] text-text-secondary hover:text-text-primary bg-transparent border-none cursor-pointer"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       <div className="flex flex-col gap-1">
         {items.length === 0 && (

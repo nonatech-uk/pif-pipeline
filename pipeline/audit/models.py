@@ -74,3 +74,6 @@ class AuditEntry(BaseModel):
 
     # Extracted fields for cross-referencing
     extracted: dict[str, Any] = Field(default_factory=dict)
+
+    # Archive timestamp
+    archived_at: datetime | None = None

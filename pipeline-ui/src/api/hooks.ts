@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiFetch } from './client'
-import type { PipelineStatus, ExceptionItem, DecisionItem, DecisionDetail, Rule, CorrectionItem } from './types'
+import type { PipelineStatus, ExceptionItem, DecisionItem, DecisionDetail, Rule, CorrectionItem, IgnoreSender, ArchiveResult } from './types'
 
 const POLL_MS = 10_000
 
@@ -20,10 +20,11 @@ export function useExceptions(status = 'pending') {
   })
 }
 
-export function useDecisions(source = 'all') {
+export function useDecisions(source = 'all', archived?: boolean) {
+  const archivedParam = archived === undefined ? '' : `&archived=${archived}`
   return useQuery<{ items: DecisionItem[]; total: number }>({
-    queryKey: ['decisions', source],
-    queryFn: () => apiFetch(`/decisions?source=${source}&limit=50`),
+    queryKey: ['decisions', source, archived],
+    queryFn: () => apiFetch(`/decisions?source=${source}&limit=50${archivedParam}`),
     refetchInterval: POLL_MS,
   })
 }
@@ -151,6 +152,54 @@ export function useTriageException() {
     }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['exceptions'] })
+      qc.invalidateQueries({ queryKey: ['status'] })
+    },
+  })
+}
+
+export function useIgnoreSenders() {
+  return useQuery<{ items: IgnoreSender[] }>({
+    queryKey: ['ignore-senders'],
+    queryFn: () => apiFetch('/settings/ignore-senders'),
+  })
+}
+
+export function useAddIgnoreSender() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: { address: string; note: string }) =>
+      apiFetch('/settings/ignore-senders', { method: 'POST', body: JSON.stringify(data) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['ignore-senders'] }),
+  })
+}
+
+export function useDeleteIgnoreSender() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => apiFetch(`/settings/ignore-senders/${id}`, { method: 'DELETE' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['ignore-senders'] }),
+  })
+}
+
+export function useIgnoreSenderFromItem() {
+  const qc = useQueryClient()
+  return useMutation<{ address: string; sender: string; moved_back: boolean }, Error, string>({
+    mutationFn: (itemId: string) =>
+      apiFetch('/settings/ignore-senders/from-item', {
+        method: 'POST',
+        body: JSON.stringify({ item_id: itemId }),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['ignore-senders'] }),
+  })
+}
+
+export function useArchiveDecisions() {
+  const qc = useQueryClient()
+  return useMutation<ArchiveResult>({
+    mutationFn: () => apiFetch('/decisions/archive', { method: 'POST' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['decisions'] })
+      qc.invalidateQueries({ queryKey: ['corrections'] })
       qc.invalidateQueries({ queryKey: ['status'] })
     },
   })
