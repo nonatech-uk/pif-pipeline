@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import AppSwitcher from './components/layout/AppSwitcher'
 import StatsRow from './components/StatsRow'
 import ExceptionQueue from './components/ExceptionQueue'
 import DecisionsList from './components/DecisionsList'
@@ -21,7 +22,10 @@ export default function App() {
     <div className="max-w-[1100px] mx-auto px-4 py-6">
       <header className="flex justify-between items-baseline mb-6">
         <div className="flex items-center gap-6">
-          <h1 className="text-xl font-semibold text-text-primary">Pipeline</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-semibold text-text-primary">Pipeline</h1>
+            <AppSwitcher />
+          </div>
           <nav className="flex gap-1">
             <TabButton active={tab === 'dashboard'} onClick={() => setTab('dashboard')}>
               Dashboard
