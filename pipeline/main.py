@@ -50,6 +50,20 @@ async def process_envelope(envelope: Envelope) -> None:
         envelope.file_size, envelope.file_name,
     )
 
+    # --- Step 0: Check for previously unsubscribed senders ---
+    if envelope.source_type == "email" and envelope.source_email_from and envelope.source_email_to:
+        from pipeline.unsubscribe.processor import check_unsubscribed_sender
+        unsub_addr = await check_unsubscribed_sender(envelope.source_email_from, envelope.source_email_to)
+        if unsub_addr:
+            log.warning("Email from unsubscribed sender: %s → %s", unsub_addr, envelope.source_email_to)
+            notifier = notify_mod.get()
+            if notifier:
+                await notifier.send(
+                    f"Unsubscribed sender reappeared: {unsub_addr}",
+                    f"From: {envelope.source_email_from}\nTo: {envelope.source_email_to}\nSubject: {envelope.source_email_subject}\n\nThis sender was previously unsubscribed from.",
+                    Priority.HIGH,
+                )
+
     # --- Step 1: Classify ---
     tier_traces = []
     if _tier_runner:
@@ -289,6 +303,20 @@ async def main() -> None:
     else:
         log.warning("IMAP credentials not set — Email watcher disabled")
 
+    # Unsubscribe processor (standalone task, not a watcher)
+    unsub_processor = None
+    if settings.services.imap_user and settings.services.imap_password and settings.anthropic_api_key:
+        from pipeline.unsubscribe.processor import UnsubscribeProcessor
+        unsub_processor = UnsubscribeProcessor(
+            host=settings.services.imap_host,
+            port=settings.services.imap_port,
+            user=settings.services.imap_user,
+            password=settings.services.imap_password,
+            anthropic_api_key=settings.anthropic_api_key,
+        )
+    else:
+        log.warning("IMAP or Anthropic credentials not set — Unsubscribe processor disabled")
+
     # Start FastAPI server for webhooks
     app = create_app()
     config = uvicorn.Config(app, host="0.0.0.0", port=8080, log_level="warning")
@@ -297,6 +325,8 @@ async def main() -> None:
     tasks = [asyncio.create_task(server.serve(), name="uvicorn")]
     for name, watcher in watchers:
         tasks.append(asyncio.create_task(run_watcher(watcher, name), name=name))
+    if unsub_processor:
+        tasks.append(asyncio.create_task(unsub_processor.run(), name="unsubscribe"))
 
     log.info("Pipeline running — %d watchers, tier ceiling=%s", len(watchers), settings.tiers.ceiling)
 

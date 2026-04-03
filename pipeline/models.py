@@ -61,6 +61,7 @@ class Envelope(BaseModel):
 
     # Email-specific
     source_email_from: str | None = None
+    source_email_to: str | None = None
     source_email_subject: str | None = None
 
     # Extracted metadata

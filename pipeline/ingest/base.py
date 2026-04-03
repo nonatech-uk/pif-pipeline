@@ -44,6 +44,7 @@ class SourceWatcher:
         source_path: str | None = None,
         file_name: str | None = None,
         source_email_from: str | None = None,
+        source_email_to: str | None = None,
         source_email_subject: str | None = None,
     ) -> Envelope:
         """Build a normalised Envelope from raw file bytes."""
@@ -84,6 +85,7 @@ class SourceWatcher:
             raw_bytes=raw_bytes,
             exif=exif,
             source_email_from=source_email_from,
+            source_email_to=source_email_to,
             source_email_subject=source_email_subject,
         )
 

@@ -255,6 +255,7 @@ class EmailWatcher(SourceWatcher):
         """Parse a raw email, yielding an Envelope per attachment or the body."""
         msg = emaillib.message_from_bytes(raw_email, policy=emaillib.policy.default)
         from_addr = _decode_header(msg.get("From", ""))
+        to_addr = _decode_header(msg.get("To", ""))
         subject = _decode_header(msg.get("Subject", ""))
         log.info("Email from %s: %s", from_addr, subject)
 
@@ -276,6 +277,7 @@ class EmailWatcher(SourceWatcher):
                         source_path=f"email://{message_id}/{filename}",
                         file_name=filename,
                         source_email_from=from_addr,
+                        source_email_to=to_addr,
                         source_email_subject=subject,
                     )
                     attachment_count += 1
