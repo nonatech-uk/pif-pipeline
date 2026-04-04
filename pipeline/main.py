@@ -17,6 +17,7 @@ from pipeline.audit.log import AuditLog
 from pipeline.audit.models import ActionTrace, AuditEntry, DecisionTrace
 from pipeline.classify.tier_runner import TierRunner
 from pipeline.config import load_settings, Settings
+from pipeline.api.usage_tracker import init_usage_tracker, shutdown_usage_tracker
 from pipeline.db import init_pool, close_pool
 from pipeline.exceptions.queue import ExceptionItem, ExceptionQueue
 from pipeline.ingest.email import EmailWatcher
@@ -229,6 +230,10 @@ async def main() -> None:
         raise RuntimeError("DATABASE_URL environment variable is required")
     await init_pool(database_url)
 
+    # Usage tracking
+    usage_dsn = os.environ.get("USAGE_DSN", "")
+    await init_usage_tracker("pipeline", usage_dsn)
+
     # Initialise core components
     _audit_log = AuditLog()
     _exception_queue = ExceptionQueue()
@@ -335,6 +340,7 @@ async def main() -> None:
     except asyncio.CancelledError:
         pass
     finally:
+        await shutdown_usage_tracker()
         await close_pool()
 
 

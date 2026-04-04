@@ -16,6 +16,7 @@ from pipeline.api.routes_retrospective import router as retrospective_router
 from pipeline.api.routes_preview import router as preview_router
 from pipeline.api.routes_rules import router as rules_router
 from pipeline.api.routes_settings import router as settings_router
+from pipeline.api.usage_tracker import track_usage_middleware
 
 
 def create_dashboard_app() -> FastAPI:
@@ -28,6 +29,8 @@ def create_dashboard_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    app.middleware("http")(track_usage_middleware)
 
     app.include_router(status_router, prefix="/api")
     app.include_router(exceptions_router, prefix="/api")
