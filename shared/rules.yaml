@@ -199,21 +199,14 @@ rules:
           people: [Og]
     on_match: continue
 
-  # --- Priority 84: Duplicates (stop) ---
+  # --- Priority 84: Duplicates (stop, silently ignore) ---
   - id: p84-duplicate
-    name: Duplicate → discard
+    name: Duplicate → ignore
     priority: 84
     conditions:
       - type: classification
         label: duplicate
-    actions:
-      - handler: notify
-        params:
-          message: "Duplicate detected: {{ file.name }}"
-      - handler: email_move
-        params:
-          folder: Pipelined
-          subject_prefix: "(Duplicate)"
+    actions: []
     on_match: stop
 
   # --- Priority 85: Unmatched emails/photos — don't queue as exception ---

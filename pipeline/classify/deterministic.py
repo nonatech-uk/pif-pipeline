@@ -60,8 +60,8 @@ class DeterministicClassifier(Classifier):
                 needs_escalation=True,
             )
 
-        # 3. Filename pattern matching
-        if envelope.file_name:
+        # 3. Filename pattern matching (skip for emails — let Claude classify)
+        if envelope.file_name and envelope.source_type != "email":
             for pattern, label in _FILENAME_PATTERNS:
                 if pattern.search(envelope.file_name):
                     log.info("Filename match: '%s' → %s", envelope.file_name, label)
