@@ -69,10 +69,19 @@ def register_all(settings: Settings) -> None:
     else:
         log.warning("LOCATION_SECRET not set — location handler disabled")
     from pipeline.actions.wine import WineHandler
+    from pipeline.actions.stuff import StuffHandler
 
     register(ExceptionQueueHandler())
     register(NotifyHandler())
     register(WineHandler())
+
+    if settings.services.stuff_pipeline_secret:
+        register(StuffHandler(
+            base_url=settings.services.stuff_url,
+            pipeline_secret=settings.services.stuff_pipeline_secret,
+        ))
+    else:
+        log.warning("STUFF_PIPELINE_SECRET not set — stuff handler disabled")
 
     if settings.services.imap_user and settings.services.imap_password:
         from pipeline.actions.email_move import EmailMoveHandler

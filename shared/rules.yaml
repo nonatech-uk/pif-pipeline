@@ -18,6 +18,22 @@
 #   Correspondent and tags are auto-populated from Claude extraction.
 
 rules:
+  # --- Priority 8: Barcode scan for home inventory (stop) ---
+  - id: p8-stuff-barcode
+    name: Product barcode → Stuff inventory
+    priority: 8
+    conditions:
+      - type: classification
+        label: product_barcode
+        min_confidence: 0.7
+    actions:
+      - handler: stuff_barcode
+        params: {}
+      - handler: immich_album
+        params:
+          album_name: _Pipeline-Stuff Barcodes
+    on_match: stop
+
   # --- Priority 10: High-value documents (stop after match) ---
   - id: p10-boarding-pass
     name: Boarding pass → Paperless + Location
@@ -34,6 +50,9 @@ rules:
       - handler: location
         params:
           event_type: flight
+      - handler: immich_album
+        params:
+          album_name: _Pipeline-Boarding Passes
       - handler: email_move
         params:
           folder: Pipelined
@@ -56,7 +75,7 @@ rules:
           source: pipeline
       - handler: immich_album
         params:
-          album_name: Receipts
+          album_name: _Pipeline-Receipts
       - handler: email_move
         params:
           folder: Pipelined
@@ -79,7 +98,7 @@ rules:
           source: pipeline
       - handler: immich_album
         params:
-          album_name: Receipts
+          album_name: _Pipeline-Receipts
       - handler: email_move
         params:
           folder: Pipelined
@@ -98,6 +117,9 @@ rules:
         params:
           document_type: Bank Statement
           title: "{{ extracted.period_from|compact_date }}-{{ extracted.bank }} Statement"
+      - handler: immich_album
+        params:
+          album_name: _Pipeline-Bank Statements
       - handler: email_move
         params:
           folder: Pipelined
@@ -115,6 +137,9 @@ rules:
         params:
           document_type: Insurance Policy
           title: "{{ extracted.start_date|compact_date }}-{{ extracted.insurer }} {{ extracted.policy_type }}"
+      - handler: immich_album
+        params:
+          album_name: _Pipeline-Insurance
       - handler: email_move
         params:
           folder: Pipelined
@@ -132,6 +157,9 @@ rules:
         params:
           document_type: Tax Document
           title: "{{ extracted.tax_year }}-{{ extracted.issuer }} {{ extracted.document_type }}"
+      - handler: immich_album
+        params:
+          album_name: _Pipeline-Tax Documents
       - handler: email_move
         params:
           folder: Pipelined
@@ -152,6 +180,9 @@ rules:
           title: "{{ extracted.vintage }}-{{ extracted.producer }} {{ extracted.wine_name }}"
       - handler: wine
         params: {}
+      - handler: immich_album
+        params:
+          album_name: _Pipeline-Wine Labels
     on_match: stop
 
   # --- Priority 50: Geo-tagged photos (continue — pet rules may also fire) ---

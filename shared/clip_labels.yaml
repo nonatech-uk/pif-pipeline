@@ -20,5 +20,7 @@ labels:
     threshold: 0.70
   landscape:
     threshold: 0.70
+  product_barcode:
+    threshold: 0.75
   document:
     threshold: 0.75

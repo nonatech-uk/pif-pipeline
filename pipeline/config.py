@@ -39,6 +39,8 @@ class ServicesConfig(BaseSettings):
     immich_url: str = "http://127.0.0.1:2283"
     paperless_url: str = "http://paperless:8000"
     finance_url: str = "http://127.0.0.1:8000"
+    stuff_url: str = "http://stuff:8300"
+    stuff_pipeline_secret: str = ""
     imap_host: str = "mail.mees.st"
     imap_port: int = 993
     imap_user: str = ""
