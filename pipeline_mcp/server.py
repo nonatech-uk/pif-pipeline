@@ -67,6 +67,7 @@ async def list_decisions(
     label: str | None = None,
     date_from: str | None = None,
     date_to: str | None = None,
+    hide_ignored: bool = True,
     limit: int = 20,
     offset: int = 0,
 ) -> str:
@@ -77,10 +78,11 @@ async def list_decisions(
         label: Filter by classification label (e.g. 'boarding_pass', 'receipt')
         date_from: Start date (YYYY-MM-DD)
         date_to: End date (YYYY-MM-DD)
+        hide_ignored: Hide items that matched rules but had no actions (default True)
         limit: Max items to return (default 20)
         offset: Skip this many items for pagination
     """
-    params = {"source": source, "limit": limit, "offset": offset}
+    params = {"source": source, "limit": limit, "offset": offset, "hide_ignored": hide_ignored}
     if label:
         params["label"] = label
     if date_from:

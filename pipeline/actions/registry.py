@@ -69,7 +69,7 @@ def register_all(settings: Settings) -> None:
     else:
         log.warning("LOCATION_SECRET not set — location handler disabled")
     from pipeline.actions.wine import WineHandler
-    from pipeline.actions.stuff import StuffHandler
+    from pipeline.actions.stuff import StuffHandler, StuffBookHandler
 
     register(ExceptionQueueHandler())
     register(NotifyHandler())
@@ -79,7 +79,14 @@ def register_all(settings: Settings) -> None:
         register(StuffHandler(
             base_url=settings.services.stuff_url,
             pipeline_secret=settings.services.stuff_pipeline_secret,
+            anthropic_api_key=settings.anthropic_api_key,
         ))
+        if settings.anthropic_api_key:
+            register(StuffBookHandler(
+                base_url=settings.services.stuff_url,
+                pipeline_secret=settings.services.stuff_pipeline_secret,
+                anthropic_api_key=settings.anthropic_api_key,
+            ))
     else:
         log.warning("STUFF_PIPELINE_SECRET not set — stuff handler disabled")
 

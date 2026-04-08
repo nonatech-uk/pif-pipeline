@@ -118,6 +118,11 @@ async def process_envelope(envelope: Envelope) -> None:
                     "ACTION  %s → %s (ref=%s, %dms)",
                     handler.name, "OK" if result.ok else "FAIL", result.ref, duration_ms,
                 )
+
+        # Rules matched but no actions → explicitly mark as ignored
+        if not destinations:
+            destinations.append("ignored")
+            log.info("IGNORED  rules matched with no actions — marking as ignored")
     else:
         # No rules matched — push to exception queue
         if _exception_queue:

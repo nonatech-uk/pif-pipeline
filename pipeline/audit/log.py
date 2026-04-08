@@ -138,7 +138,7 @@ class AuditLog:
             params.append(date_to)
             idx += 1
         if hide_ignored:
-            conditions.append("destinations != '{}'")
+            conditions.append("NOT ('ignored' = ANY(destinations))")
         if archived is False:
             conditions.append("archived_at IS NULL")
         elif archived is True:

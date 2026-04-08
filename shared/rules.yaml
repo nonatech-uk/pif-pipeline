@@ -34,6 +34,21 @@ rules:
           album_name: _Pipeline-Stuff Barcodes
     on_match: stop
 
+  - id: p8-stuff-book
+    name: Book cover → Stuff inventory
+    priority: 8
+    conditions:
+      - type: classification
+        label: book_cover
+        min_confidence: 0.7
+    actions:
+      - handler: stuff_book
+        params: {}
+      - handler: immich_album
+        params:
+          album_name: _Pipeline-Stuff Books
+    on_match: stop
+
   # --- Priority 10: High-value documents (stop after match) ---
   - id: p10-boarding-pass
     name: Boarding pass → Paperless + Location
@@ -64,7 +79,7 @@ rules:
     conditions:
       - type: classification
         label: invoice
-        min_confidence: 0.7
+        min_confidence: 0.85
     actions:
       - handler: paperless
         params:

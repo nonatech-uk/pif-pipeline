@@ -24,7 +24,7 @@ export function useDecisions(source = 'all', archived?: boolean) {
   const archivedParam = archived === undefined ? '' : `&archived=${archived}`
   return useQuery<{ items: DecisionItem[]; total: number }>({
     queryKey: ['decisions', source, archived],
-    queryFn: () => apiFetch(`/decisions?source=${source}&limit=50${archivedParam}`),
+    queryFn: () => apiFetch(`/decisions?source=${source}&limit=50&hide_ignored=true${archivedParam}`),
     refetchInterval: POLL_MS,
   })
 }

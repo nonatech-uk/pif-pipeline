@@ -263,6 +263,12 @@ class EmailWatcher(SourceWatcher):
             log.info("Skipping ignored sender: %s", from_addr)
             return
 
+        # Skip replies and forwarded emails
+        subject_lower = subject.strip().lower()
+        if subject_lower.startswith(("re:", "fwd:", "fw:")):
+            log.info("Skipping reply/forward: %s", subject)
+            return
+
         attachment_count = 0
         for part in msg.walk():
             content_type = part.get_content_type()
