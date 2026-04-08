@@ -111,16 +111,33 @@ def load_training_examples():
 
 def resolve_name(endpoint, name, cache):
     """Find or create a Paperless entity by name. Returns PK."""
-    # Case-insensitive lookup
+    # Case-insensitive lookup in local cache
     for existing_name, pk in cache.items():
         if existing_name.lower() == name.lower():
             return pk
-    # Create new
-    data = paperless_post(endpoint, {"name": name})
-    pk = data["id"]
-    cache[name] = pk
-    print(f"    Created {endpoint}: {name} → {pk}")
-    return pk
+    # Try to create; if it already exists (unique constraint), search for it
+    try:
+        data = paperless_post(endpoint, {"name": name})
+        pk = data["id"]
+        cache[name] = pk
+        print(f"    Created {endpoint}: {name} → {pk}")
+        return pk
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 400:
+            # Already exists — search Paperless for it
+            results = paperless_get(f"/{endpoint}/", {"name__iexact": name})
+            for item in results.get("results", []):
+                if item["name"].lower() == name.lower():
+                    cache[item["name"]] = item["id"]
+                    return item["id"]
+            # Fallback: broader search
+            results = paperless_get(f"/{endpoint}/", {"name__icontains": name})
+            for item in results.get("results", []):
+                if item["name"].lower() == name.lower():
+                    cache[item["name"]] = item["id"]
+                    return item["id"]
+            raise ValueError(f"Entity '{name}' exists in Paperless but couldn't be found via search")
+        raise
 
 
 # ── Classification ─────────────────────────────────────────────────────
@@ -370,7 +387,8 @@ def main():
                 record_corpus(doc_id, assigned_type, assigned_corr, assigned_tags, content, confidence)
             except Exception as e:
                 print(f"    ✗ Update failed: {e}")
-                errors += 1
+                print(f"\nAborting — fix the issue and rerun (progress is saved).")
+                return 1
 
         classified += 1
         time.sleep(1)  # Rate limit
