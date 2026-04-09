@@ -13,7 +13,7 @@ export default function StatsRow({ status }: Props) {
   ]
 
   return (
-    <div className="grid grid-cols-4 gap-3 mb-7">
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-7">
       {cards.map((c) => (
         <div key={c.label} className="bg-bg-card border border-border rounded-lg px-5 py-4 text-center">
           <div className={`text-3xl font-bold ${c.color}`}>{c.value}</div>

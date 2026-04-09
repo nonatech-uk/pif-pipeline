@@ -20,29 +20,27 @@ export default function App() {
 
   return (
     <div className="max-w-[1100px] mx-auto px-4 py-6">
-      <header className="flex justify-between items-baseline mb-6">
-        <div className="flex items-center gap-6">
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-semibold text-text-primary">Pipeline</h1>
-            <AppSwitcher />
-          </div>
-          <nav className="flex gap-1">
-            <TabButton active={tab === 'dashboard'} onClick={() => setTab('dashboard')}>
-              Dashboard
-            </TabButton>
-            <TabButton active={tab === 'history'} onClick={() => setTab('history')}>
-              History
-            </TabButton>
-            <TabButton active={tab === 'rules'} onClick={() => setTab('rules')}>
-              Rules
-            </TabButton>
-            <TabButton active={tab === 'settings'} onClick={() => setTab('settings')}>
-              Settings
-            </TabButton>
-          </nav>
+      <header className="flex flex-wrap items-center gap-y-2 gap-x-6 mb-6">
+        <div className="flex items-center gap-2">
+          <a href="/" className="text-xl font-semibold text-text-primary hover:text-accent transition-colors">Pipeline</a>
+          <AppSwitcher currentApp="Pipeline" />
         </div>
+        <nav className="flex gap-1">
+          <TabButton active={tab === 'dashboard'} onClick={() => setTab('dashboard')}>
+            Dashboard
+          </TabButton>
+          <TabButton active={tab === 'history'} onClick={() => setTab('history')}>
+            History
+          </TabButton>
+          <TabButton active={tab === 'rules'} onClick={() => setTab('rules')}>
+            Rules
+          </TabButton>
+          <TabButton active={tab === 'settings'} onClick={() => setTab('settings')}>
+            Settings
+          </TabButton>
+        </nav>
         {status?.last_processed && (
-          <span className="text-xs text-text-secondary">
+          <span className="hidden sm:inline text-xs text-text-secondary ml-auto">
             Last: {new Date(status.last_processed).toLocaleString()}
           </span>
         )}
