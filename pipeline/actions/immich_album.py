@@ -51,12 +51,25 @@ class ImmichAlbumHandler(ActionHandler):
                     json={"ids": [asset_id]},
                 )
 
-            if resp.status_code in (200, 201):
-                log.info("Immich album: added %s to '%s'", asset_id[:8], album_name)
-                return ActionResult(ok=True, destination=self.name, ref=album_id)
+                if resp.status_code not in (200, 201):
+                    log.error("Immich album error: HTTP %d — %s", resp.status_code, resp.text[:200])
+                    return ActionResult(ok=False, destination=self.name, reason=f"HTTP {resp.status_code}")
 
-            log.error("Immich album error: HTTP %d — %s", resp.status_code, resp.text[:200])
-            return ActionResult(ok=False, destination=self.name, reason=f"HTTP {resp.status_code}")
+                log.info("Immich album: added %s to '%s'", asset_id[:8], album_name)
+
+                # Archive asset to remove from timeline/Recents
+                if rendered.get("archive", False):
+                    archive_resp = await client.put(
+                        f"{self._base_url}/api/assets",
+                        headers=headers,
+                        json={"ids": [asset_id], "isArchived": True},
+                    )
+                    if archive_resp.status_code in (200, 204):
+                        log.info("Immich archive: archived %s", asset_id[:8])
+                    else:
+                        log.warning("Immich archive failed: HTTP %d — %s", archive_resp.status_code, archive_resp.text[:200])
+
+            return ActionResult(ok=True, destination=self.name, ref=album_id)
         except httpx.HTTPError as e:
             log.error("Immich connection error: %s", e)
             return ActionResult(ok=False, destination=self.name, reason=str(e), retryable=True)

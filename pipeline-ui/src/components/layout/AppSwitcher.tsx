@@ -1,26 +1,74 @@
 import { useState, useRef, useEffect } from 'react'
 
-const APPS = [
-  { label: 'Home', href: 'https://dash.mees.st', icon: '\u2302' },
-  { label: 'Journal', href: 'https://journal.mees.st', icon: '\u25EB' },
-  { label: 'Finance', href: 'https://finance.mees.st', icon: '\u00A3' },
-  { label: 'Wine', href: 'https://wine.mees.st', icon: '\uD83C\uDF77' },
-  { label: 'Pipeline', href: 'https://pipeline.mees.st', icon: '\u25B6' },
-  { label: 'Music', href: 'https://music.mees.st', icon: '\u266B' },
-  { label: 'Locations', href: 'https://locations.mees.st', icon: '\u25CE' },
-]
+interface App {
+  label: string
+  href: string
+  icon: string
+}
+interface External {
+  label: string
+  href: string
+}
+interface NavData {
+  apps: App[]
+  external: External[]
+}
 
-const EXTERNAL = [
-  { label: 'Healthchecks', href: 'https://hc.mees.st' },
-  { label: 'Grafana', href: 'https://grafana.mees.st' },
-  { label: 'Paperless', href: 'https://docs.mees.st' },
-  { label: 'Immich', href: 'https://pix.mees.st' },
-  { label: 'Plex', href: 'https://plex.mees.st' },
-]
+const CACHE_KEY = 'app-switcher-nav'
+const NAV_URL = 'https://dash.mees.st/api/v1/apps'
 
-export default function AppSwitcher() {
+const FALLBACK: NavData = {
+  apps: [
+    { label: 'Home', href: 'https://dash.mees.st', icon: '\u2302' },
+    { label: 'Journal', href: 'https://journal.mees.st', icon: '\u25EB' },
+    { label: 'Finance', href: 'https://finance.mees.st', icon: '\u00A3' },
+    { label: 'Wine', href: 'https://wine.mees.st', icon: '\uD83C\uDF77' },
+    { label: 'Pipeline', href: 'https://pipeline.mees.st', icon: '\u25B6' },
+    { label: 'Music', href: 'https://music.mees.st', icon: '\u266B' },
+    { label: 'Locations', href: 'https://locations.mees.st', icon: '\u25CE' },
+    { label: 'Stuff', href: 'https://stuff.mees.st', icon: '\uD83D\uDCE6' },
+    { label: 'Links', href: 'https://links.mees.st', icon: '\uD83D\uDD17' },
+  ],
+  external: [
+    { label: 'Healthchecks', href: 'https://hc.mees.st' },
+    { label: 'Grafana', href: 'https://grafana.mees.st' },
+    { label: 'Paperless', href: 'https://docs.mees.st' },
+    { label: 'Immich', href: 'https://pix.mees.st' },
+    { label: 'Plex', href: 'https://plex.mees.st' },
+  ],
+}
+
+function getCached(): NavData | null {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY)
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
+
+function setCache(data: NavData) {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify(data))
+  } catch { /* ignore */ }
+}
+
+export default function AppSwitcher({ currentApp }: { currentApp?: string }) {
   const [open, setOpen] = useState(false)
+  const [nav, setNav] = useState<NavData>(() => getCached() || FALLBACK)
   const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    fetch(NAV_URL)
+      .then((r) => r.ok ? r.json() : null)
+      .then((data: NavData | null) => {
+        if (data?.apps) {
+          setNav(data)
+          setCache(data)
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     if (!open) return
@@ -53,11 +101,13 @@ export default function AppSwitcher() {
       {open && (
         <div className="absolute left-0 top-full mt-1 z-50 bg-bg-card border border-border rounded-lg shadow-lg p-3 w-56">
           <div className="grid grid-cols-3 gap-1 mb-2">
-            {APPS.map((app) => (
+            {nav.apps.map((app) => (
               <a
                 key={app.label}
                 href={app.href}
-                className="flex flex-col items-center gap-1 p-2 rounded hover:bg-bg-hover transition-colors text-center"
+                className={`flex flex-col items-center gap-1 p-2 rounded hover:bg-bg-hover transition-colors text-center ${
+                  app.label === currentApp ? 'bg-accent/10' : ''
+                }`}
               >
                 <span className="text-lg">{app.icon}</span>
                 <span className="text-[11px] text-text-secondary leading-tight">{app.label}</span>
@@ -65,7 +115,7 @@ export default function AppSwitcher() {
             ))}
           </div>
           <div className="border-t border-border pt-2">
-            {EXTERNAL.map((link) => (
+            {nav.external.map((link) => (
               <a
                 key={link.label}
                 href={link.href}
