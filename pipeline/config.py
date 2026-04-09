@@ -47,6 +47,8 @@ class ServicesConfig(BaseSettings):
     imap_password: str = ""
     location_url: str = "http://host.containers.internal:8100"
     location_secret: str = ""
+    trips_url: str = "http://trips:8400"
+    trips_pipeline_secret: str = ""
 
 
 class ClassifierConfig(BaseSettings):

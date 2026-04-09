@@ -77,7 +77,7 @@ rules:
     on_match: stop
 
   - id: p10-invoice
-    name: Invoice → Paperless + Finance
+    name: Invoice → Paperless + Finance + Trips
     priority: 10
     conditions:
       - type: classification
@@ -91,6 +91,9 @@ rules:
       - handler: finance
         params:
           source: pipeline
+      - handler: expense
+        params:
+          source: pipeline
       - handler: immich_album
         params:
           album_name: _Pipeline-Receipts
@@ -101,7 +104,7 @@ rules:
     on_match: stop
 
   - id: p10-receipt
-    name: Receipt → Paperless + Finance
+    name: Receipt → Paperless + Finance + Trips
     priority: 10
     conditions:
       - type: classification
@@ -113,6 +116,9 @@ rules:
           document_type: Receipt
           title: "{{ extracted.date|compact_date }}-{{ extracted.merchant }}"
       - handler: finance
+        params:
+          source: pipeline
+      - handler: expense
         params:
           source: pipeline
       - handler: immich_album

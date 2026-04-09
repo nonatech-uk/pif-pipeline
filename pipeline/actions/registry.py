@@ -90,6 +90,15 @@ def register_all(settings: Settings) -> None:
     else:
         log.warning("STUFF_PIPELINE_SECRET not set — stuff handler disabled")
 
+    if settings.services.trips_pipeline_secret:
+        from pipeline.actions.expense import ExpenseHandler
+        register(ExpenseHandler(
+            base_url=settings.services.trips_url,
+            pipeline_secret=settings.services.trips_pipeline_secret,
+        ))
+    else:
+        log.warning("TRIPS_PIPELINE_SECRET not set — expense handler disabled")
+
     if settings.services.imap_user and settings.services.imap_password:
         from pipeline.actions.email_move import EmailMoveHandler
         register(EmailMoveHandler(
