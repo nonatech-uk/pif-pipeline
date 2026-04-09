@@ -18,7 +18,15 @@
     "noUnusedParameters": true,
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true,
-    "noUncheckedSideEffectImports": true
+    "noUncheckedSideEffectImports": true,
+    "baseUrl": ".",
+    "paths": {
+      "@mees/shared-ui": ["../../mees-shared-ui/src/index.ts"],
+      "@mees/shared-ui/*": ["../../mees-shared-ui/src/*"],
+      "react": ["./node_modules/@types/react"],
+      "react/*": ["./node_modules/@types/react/*"],
+      "@tanstack/react-query": ["./node_modules/@tanstack/react-query"]
+    }
   },
-  "include": ["src"]
+  "include": ["src", "../../mees-shared-ui/src"]
 }

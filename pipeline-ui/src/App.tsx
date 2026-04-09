@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import AppSwitcher from './components/layout/AppSwitcher'
+import { AppSwitcher } from '@mees/shared-ui'
 import StatsRow from './components/StatsRow'
 import ExceptionQueue from './components/ExceptionQueue'
 import DecisionsList from './components/DecisionsList'

@@ -9,6 +9,7 @@ import sys
 import time
 from pathlib import Path
 
+import httpx
 import uvicorn
 from fastapi import FastAPI
 
@@ -327,12 +328,35 @@ async def main() -> None:
     else:
         log.warning("IMAP or Anthropic credentials not set — Unsubscribe processor disabled")
 
+    # Register with central dashboard
+    async def _register_with_dashboard():
+        payload = {"label": "Pipeline", "href": "https://pipeline.mees.st", "icon": "\u25B6", "sort_order": 4}
+        key = os.environ.get("DASH_REGISTRY_KEY", "")
+        if not key:
+            return
+        headers = {"Authorization": f"Bearer {key}"}
+        while True:
+            try:
+                async with httpx.AsyncClient() as client:
+                    resp = await client.post(
+                        "http://dashboard:8000/api/v1/apps/register",
+                        json=payload, headers=headers, timeout=5,
+                    )
+                    if resp.is_success:
+                        log.info("Registered with dashboard")
+                        await asyncio.sleep(300)
+                        continue
+            except Exception:
+                pass
+            await asyncio.sleep(30)
+
     # Start FastAPI server for webhooks
     app = create_app()
     config = uvicorn.Config(app, host="0.0.0.0", port=8080, log_level="warning")
     server = uvicorn.Server(config)
 
     tasks = [asyncio.create_task(server.serve(), name="uvicorn")]
+    tasks.append(asyncio.create_task(_register_with_dashboard(), name="dashboard-register"))
     for name, watcher in watchers:
         tasks.append(asyncio.create_task(run_watcher(watcher, name), name=name))
     if unsub_processor:

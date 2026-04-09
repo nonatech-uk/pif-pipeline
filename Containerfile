@@ -1,5 +1,9 @@
 # Stage 1: Build UI
 FROM node:22-slim AS ui-build
+
+WORKDIR /mees-shared-ui
+COPY mees-shared-ui/ .
+
 WORKDIR /ui
 COPY pipeline-ui/package.json pipeline-ui/package-lock.json ./
 RUN npm ci
