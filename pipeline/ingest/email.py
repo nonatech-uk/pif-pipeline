@@ -176,21 +176,25 @@ class EmailWatcher(SourceWatcher):
         )
 
         import httpx
-        hc_url = "https://hc.mees.st/ping/5c7b6230-b715-4694-ba61-b22b539e2612"
+        import os
+        hc_uuid = os.environ.get("HC_PIPELINE_EMAIL", "")
+        hc_url = f"https://hc.mees.st/ping/{hc_uuid}" if hc_uuid else ""
 
         while True:
             try:
                 for envelope in await self._poll():
                     yield envelope
-                async with httpx.AsyncClient(timeout=10) as hc:
-                    await hc.get(hc_url)
+                if hc_url:
+                    async with httpx.AsyncClient(timeout=10) as hc:
+                        await hc.get(hc_url)
             except Exception:
                 log.exception("Email poll error, retrying in %ds", self._poll_interval)
-                try:
-                    async with httpx.AsyncClient(timeout=10) as hc:
-                        await hc.get(f"{hc_url}/fail")
-                except Exception:
-                    pass
+                if hc_url:
+                    try:
+                        async with httpx.AsyncClient(timeout=10) as hc:
+                            await hc.get(f"{hc_url}/fail")
+                    except Exception:
+                        pass
 
             await asyncio.sleep(self._poll_interval)
 
