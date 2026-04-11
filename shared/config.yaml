@@ -22,6 +22,7 @@ services:
   imap_password: "${IMAP_PASSWORD}"
   location_url: http://host.containers.internal:8100
   location_secret: "${LOCATION_SECRET}"
+  mailcow_url: https://mail.mees.st
 
 classifier:
   clip_threshold_default: 0.75

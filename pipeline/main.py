@@ -328,6 +328,21 @@ async def main() -> None:
     else:
         log.warning("IMAP or Anthropic credentials not set — Unsubscribe processor disabled")
 
+    # Spam blacklist processor (standalone task, not a watcher)
+    spam_processor = None
+    if settings.services.imap_user and settings.services.imap_password and settings.mailcow_api_key:
+        from pipeline.spam.processor import SpamProcessor
+        spam_processor = SpamProcessor(
+            host=settings.services.imap_host,
+            port=settings.services.imap_port,
+            user=settings.services.imap_user,
+            password=settings.services.imap_password,
+            mailcow_url=settings.services.mailcow_url,
+            mailcow_api_key=settings.mailcow_api_key,
+        )
+    else:
+        log.warning("IMAP or Mailcow credentials not set — Spam processor disabled")
+
     # Register with central dashboard
     async def _register_with_dashboard():
         payload = {"label": "Pipeline", "href": "https://pipeline.mees.st", "icon": "\u25B6", "sort_order": 4}
@@ -361,6 +376,8 @@ async def main() -> None:
         tasks.append(asyncio.create_task(run_watcher(watcher, name), name=name))
     if unsub_processor:
         tasks.append(asyncio.create_task(unsub_processor.run(), name="unsubscribe"))
+    if spam_processor:
+        tasks.append(asyncio.create_task(spam_processor.run(), name="spam-blacklist"))
 
     log.info("Pipeline running — %d watchers, tier ceiling=%s", len(watchers), settings.tiers.ceiling)
 

@@ -49,6 +49,7 @@ class ServicesConfig(BaseSettings):
     location_secret: str = ""
     trips_url: str = "http://trips:8400"
     trips_pipeline_secret: str = ""
+    mailcow_url: str = "https://mail.mees.st"
 
 
 class ClassifierConfig(BaseSettings):
@@ -80,6 +81,9 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     immich_api_key: str = ""
     paperless_api_key: str = ""
+
+    # Mailcow
+    mailcow_api_key: str = ""
 
     # Notifications
     pushover_app_token: str = ""
@@ -123,6 +127,7 @@ def load_settings(config_path: Path | None = None) -> Settings:
         anthropic_api_key=os.environ.get("ANTHROPIC_API_KEY", ""),
         immich_api_key=os.environ.get("IMMICH_API_KEY", ""),
         paperless_api_key=os.environ.get("PAPERLESS_API_KEY", ""),
+        mailcow_api_key=os.environ.get("MAILCOW_API_KEY", ""),
         pushover_app_token=os.environ.get("PUSHOVER_APP_TOKEN", ""),
         pushover_user_key=os.environ.get("PUSHOVER_USER_KEY", ""),
     )
