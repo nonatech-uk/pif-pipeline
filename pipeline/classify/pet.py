@@ -108,7 +108,7 @@ class PetClassifier(Classifier):
         system_prompt = self._prompt_template.replace("{{pet_list}}", pet_list)
 
         response = self._client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model="claude-sonnet-4-6-20250514",
             max_tokens=256,
             system=system_prompt,
             messages=[{"role": "user", "content": content}],
