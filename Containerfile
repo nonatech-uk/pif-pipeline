@@ -36,6 +36,10 @@ COPY scripts/ scripts/
 # Copy built UI
 COPY --from=ui-build /ui/dist pipeline-ui/dist/
 
+# Writable cache dirs for HuggingFace and Fontconfig
+ENV HF_HOME=/tmp/hf_cache
+ENV FONTCONFIG_CACHE=/tmp/fc_cache
+
 # Runtime dirs (mounted as volumes in production)
 RUN mkdir -p data/drop data/corpus
 

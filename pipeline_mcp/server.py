@@ -68,6 +68,7 @@ async def list_decisions(
     date_from: str | None = None,
     date_to: str | None = None,
     hide_ignored: bool = True,
+    feedback: str | None = None,
     limit: int = 20,
     offset: int = 0,
 ) -> str:
@@ -79,6 +80,7 @@ async def list_decisions(
         date_from: Start date (YYYY-MM-DD)
         date_to: End date (YYYY-MM-DD)
         hide_ignored: Hide items that matched rules but had no actions (default True)
+        feedback: Filter by feedback — 'positive', 'negative', 'unreviewed', or None for all
         limit: Max items to return (default 20)
         offset: Skip this many items for pagination
     """
@@ -89,6 +91,8 @@ async def list_decisions(
         params["date_from"] = date_from
     if date_to:
         params["date_to"] = date_to
+    if feedback:
+        params["feedback"] = feedback
     resp = await _client().get("/api/decisions", params=params)
     data = resp.json()
     if not data["items"]:
@@ -98,7 +102,11 @@ async def list_decisions(
         fname = (item.get("source_path") or "").split("/")[-1] or item["item_id"][:8]
         conf = f"{int(item['confidence'] * 100)}%" if item.get("confidence") else "?"
         dests = ", ".join(item.get("destinations", []))
-        lines.append(f"• [{item['item_id'][:8]}] {fname} → {item.get('label', '?')} ({conf} via {item.get('tier_used', '?')}) → {dests}")
+        fb = item.get("feedback")
+        fb_mark = " \U0001F44D" if fb == 1 else " \U0001F44E" if fb == -1 else ""
+        fb_note = f' "{item["feedback_note"]}"' if item.get("feedback_note") else ""
+        lines.append(f"• [{item['item_id'][:8]}] {fname} → {item.get('label', '?')} ({conf} via {item.get('tier_used', '?')}) → {dests}{fb_mark}{fb_note}")
+    lines.append(f"\n({data['total']} total)")
     return "\n".join(lines)
 
 

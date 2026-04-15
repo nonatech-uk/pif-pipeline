@@ -63,7 +63,8 @@ class AuditLog:
         row = await pool.fetchrow(
             """SELECT item_id, timestamp, source_type, source_path, file_sha256,
                       media_type, label, confidence, tier_used,
-                      destinations, exception_queued, trace, extracted
+                      destinations, exception_queued, trace, extracted,
+                      feedback, feedback_note
                FROM audit_log
                WHERE item_id = $1
                ORDER BY timestamp DESC LIMIT 1""",
@@ -77,7 +78,8 @@ class AuditLog:
         row = await pool.fetchrow(
             """SELECT item_id, timestamp, source_type, source_path, file_sha256,
                       media_type, label, confidence, tier_used,
-                      destinations, exception_queued, trace, extracted
+                      destinations, exception_queued, trace, extracted,
+                      feedback, feedback_note
                FROM audit_log
                WHERE file_sha256 = $1
                ORDER BY timestamp DESC LIMIT 1""",
@@ -91,7 +93,8 @@ class AuditLog:
         rows = await pool.fetch(
             """SELECT item_id, timestamp, source_type, source_path, file_sha256,
                       media_type, label, confidence, tier_used,
-                      destinations, exception_queued, trace, extracted
+                      destinations, exception_queued, trace, extracted,
+                      feedback, feedback_note
                FROM audit_log
                WHERE exception_queued = FALSE
                ORDER BY timestamp DESC
@@ -99,6 +102,15 @@ class AuditLog:
             limit,
         )
         return [_row_to_entry(r) for r in rows]
+
+    async def set_feedback(self, item_id: str, feedback: int, note: str | None = None) -> bool:
+        """Set user feedback on a decision. Returns True if row was updated."""
+        pool = get_pool()
+        result = await pool.execute(
+            "UPDATE audit_log SET feedback = $2, feedback_note = $3 WHERE item_id = $1",
+            item_id, feedback, note,
+        )
+        return result == "UPDATE 1"
 
     async def search(
         self,
@@ -108,12 +120,14 @@ class AuditLog:
         date_to: date | None = None,
         hide_ignored: bool = False,
         archived: bool | None = None,
+        feedback: str | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> tuple[list[AuditEntry], int]:
         """Search audit log with filters. Returns (entries, total_count).
 
         archived: None=all, False=unarchived only, True=archived only.
+        feedback: None=all, 'positive'=approved, 'negative'=rejected, 'unreviewed'=no feedback yet.
         """
         pool = get_pool()
 
@@ -143,6 +157,12 @@ class AuditLog:
             conditions.append("archived_at IS NULL")
         elif archived is True:
             conditions.append("archived_at IS NOT NULL")
+        if feedback == "positive":
+            conditions.append("feedback = 1")
+        elif feedback == "negative":
+            conditions.append("feedback = -1")
+        elif feedback == "unreviewed":
+            conditions.append("feedback IS NULL")
 
         conditions.append("exception_queued = FALSE")
         where = f"WHERE {' AND '.join(conditions)}"
@@ -154,7 +174,8 @@ class AuditLog:
         rows = await pool.fetch(
             f"""SELECT item_id, timestamp, source_type, source_path, file_sha256,
                        media_type, label, confidence, tier_used,
-                       destinations, exception_queued, trace, extracted
+                       destinations, exception_queued, trace, extracted,
+                       feedback, feedback_note
                 FROM audit_log {where}
                 ORDER BY timestamp DESC
                 LIMIT ${idx} OFFSET ${idx + 1}""",
@@ -164,13 +185,13 @@ class AuditLog:
         return [_row_to_entry(r) for r in rows], total
 
     async def archive_all(self) -> list[dict]:
-        """Archive all non-archived entries. Returns list of archived items."""
+        """Archive all non-archived entries. Returns list of archived items with feedback."""
         pool = get_pool()
         rows = await pool.fetch(
             """UPDATE audit_log
                SET archived_at = now()
                WHERE archived_at IS NULL
-               RETURNING item_id, source_type, source_path, extracted""",
+               RETURNING item_id, source_type, source_path, extracted, feedback""",
         )
         return [dict(r) for r in rows]
 
@@ -197,4 +218,6 @@ def _row_to_entry(row) -> AuditEntry:
         exception_queued=row["exception_queued"],
         trace=DecisionTrace.model_validate(trace_data),
         extracted=extracted,
+        feedback=row.get("feedback"),
+        feedback_note=row.get("feedback_note"),
     )

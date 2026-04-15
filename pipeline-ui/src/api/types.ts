@@ -29,6 +29,8 @@ export interface DecisionItem {
   destinations: string[]
   exception_queued: boolean
   extracted: Record<string, unknown>
+  feedback: number | null
+  feedback_note: string | null
 }
 
 export interface TierTrace {

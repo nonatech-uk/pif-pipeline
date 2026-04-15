@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { useDecisions, useArchiveDecisions } from '../api/hooks'
-import type { ArchiveResult } from '../api/types'
+import { useDecisions, useArchiveDecisions, useSubmitFeedback } from '../api/hooks'
+import type { ArchiveResult, DecisionItem } from '../api/types'
 
 const TIER_COLORS: Record<string, string> = {
   deterministic: 'text-tier-deterministic',
@@ -19,6 +19,118 @@ interface Props {
   onSelect: (id: string) => void
 }
 
+function FeedbackControls({ item }: { item: DecisionItem }) {
+  const feedback = useSubmitFeedback()
+  const [pendingDirection, setPendingDirection] = useState<1 | -1 | null>(null)
+  const [note, setNote] = useState('')
+  const [editing, setEditing] = useState(false)
+
+  const handleSubmit = () => {
+    const dir = pendingDirection ?? item.feedback as 1 | -1
+    if (dir === -1 && !note.trim()) return // mandatory note for disagree
+    feedback.mutate({ itemId: item.item_id, feedback: dir, note: note.trim() || undefined })
+    setPendingDirection(null)
+    setEditing(false)
+    setNote('')
+  }
+
+  const handleCancel = () => {
+    setPendingDirection(null)
+    setEditing(false)
+    setNote('')
+  }
+
+  // Note input — shown for new feedback or editing existing
+  if (pendingDirection != null || editing) {
+    const dir = pendingDirection ?? item.feedback as 1 | -1
+    const isDisagree = dir === -1
+    return (
+      <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+        <span className="text-sm">{dir === 1 ? '\u{1F44D}' : '\u{1F44E}'}</span>
+        <input
+          type="text"
+          value={note}
+          onChange={e => setNote(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Enter') handleSubmit()
+            if (e.key === 'Escape') handleCancel()
+          }}
+          placeholder={isDisagree ? 'Why? (required)' : 'Note (optional)'}
+          className="text-[11px] px-1.5 py-0.5 bg-bg-secondary text-text-primary border border-border rounded w-[160px]"
+          autoFocus
+        />
+        <button
+          onClick={handleSubmit}
+          disabled={isDisagree && !note.trim()}
+          className={`text-[10px] px-1.5 py-0.5 text-white rounded disabled:opacity-30 ${isDisagree ? 'bg-danger hover:bg-danger/80' : 'bg-success hover:bg-success/80'}`}
+        >
+          {editing ? 'Update' : 'Send'}
+        </button>
+        <button
+          onClick={handleCancel}
+          className="text-[10px] px-1 py-0.5 text-text-secondary hover:text-text-primary bg-transparent border-none cursor-pointer"
+        >
+          Esc
+        </button>
+      </div>
+    )
+  }
+
+  // Already has feedback — show result, click thumb or note to edit
+  if (item.feedback != null) {
+    return (
+      <div className="flex items-center gap-1.5 min-w-[60px] justify-end" onClick={e => e.stopPropagation()}>
+        <button
+          className={`text-sm bg-transparent border-none cursor-pointer p-0 hover:scale-110 transition-transform ${item.feedback === 1 ? 'text-success' : 'text-danger'}`}
+          title="Click to edit feedback"
+          onClick={() => { setNote(item.feedback_note ?? ''); setEditing(true) }}
+        >
+          {item.feedback === 1 ? '\u{1F44D}' : '\u{1F44E}'}
+        </button>
+        {item.feedback_note ? (
+          <span
+            className="text-[10px] text-text-secondary max-w-[120px] truncate cursor-pointer hover:text-text-primary"
+            title={`${item.feedback_note} (click to edit)`}
+            onClick={() => { setNote(item.feedback_note ?? ''); setEditing(true) }}
+          >
+            {item.feedback_note}
+          </span>
+        ) : (
+          <button
+            onClick={() => { setNote(''); setEditing(true) }}
+            className="text-[10px] text-text-secondary hover:text-text-primary bg-transparent border-none cursor-pointer opacity-40 hover:opacity-100"
+            title="Add note"
+          >
+            +note
+          </button>
+        )}
+      </div>
+    )
+  }
+
+  // No feedback yet — show thumbs
+  return (
+    <div className="flex items-center gap-1 min-w-[60px] justify-end" onClick={e => e.stopPropagation()}>
+      <button
+        onClick={() => { setNote(''); setPendingDirection(1) }}
+        disabled={feedback.isPending}
+        className="text-sm opacity-60 hover:opacity-100 transition-opacity bg-transparent border-none cursor-pointer p-0.5"
+        title="Good decision"
+      >
+        {'\u{1F44D}'}
+      </button>
+      <button
+        onClick={() => { setNote(''); setPendingDirection(-1) }}
+        disabled={feedback.isPending}
+        className="text-sm opacity-60 hover:opacity-100 transition-opacity bg-transparent border-none cursor-pointer p-0.5"
+        title="Bad decision"
+      >
+        {'\u{1F44E}'}
+      </button>
+    </div>
+  )
+}
+
 export default function DecisionsList({ onSelect }: Props) {
   const [source, setSource] = useState('all')
   const [hideIgnored, setHideIgnored] = useState(true)
@@ -26,7 +138,7 @@ export default function DecisionsList({ onSelect }: Props) {
   const archive = useArchiveDecisions()
   const [archiveResult, setArchiveResult] = useState<ArchiveResult | null>(null)
   const allItems = data?.items ?? []
-  const items = hideIgnored ? allItems.filter(i => i.destinations.length > 0) : allItems
+  const items = hideIgnored ? allItems.filter(i => i.destinations.length > 0 && !i.destinations.every(d => d === 'ignored')) : allItems
 
   return (
     <section className="mb-7">
@@ -105,7 +217,7 @@ export default function DecisionsList({ onSelect }: Props) {
             </div>
             <div className="flex-1 min-w-0">
               <div className="text-[13px] font-medium text-text-primary truncate">
-                {item.source_path?.split('/').pop() ?? item.item_id.slice(0, 8)}
+                {(item.extracted?.['_summary'] as string)?.slice(0, 60) || item.source_path?.split('/').pop() || item.item_id.slice(0, 8)}
               </div>
               <div className="flex gap-1.5 mt-1 items-center">
                 {item.label && (
@@ -138,6 +250,7 @@ export default function DecisionsList({ onSelect }: Props) {
                 </span>
               ))}
             </div>
+            <FeedbackControls item={item} />
             <div className="text-[11px] text-text-secondary min-w-[105px] text-right">
               {new Date(item.timestamp).toLocaleString()}
             </div>

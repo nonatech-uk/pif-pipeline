@@ -12,12 +12,18 @@ from datetime import date
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel
 
 from pipeline.api.deps import get_audit_log, get_settings
 from pipeline.db import get_pool
 
 log = logging.getLogger(__name__)
 router = APIRouter()
+
+
+class FeedbackRequest(BaseModel):
+    feedback: int  # 1 or -1
+    note: str | None = None
 
 
 @router.get("/decisions")
@@ -28,10 +34,14 @@ async def list_decisions(
     date_to: date | None = None,
     hide_ignored: bool = False,
     archived: bool | None = None,
+    feedback: str | None = None,
     limit: int = 50,
     offset: int = 0,
 ):
-    """List decisions from the audit log with optional filters."""
+    """List decisions from the audit log with optional filters.
+
+    feedback: 'positive', 'negative', 'unreviewed', or None for all.
+    """
     audit = get_audit_log()
     entries, total = await audit.search(
         source=source if source != "all" else None,
@@ -40,6 +50,7 @@ async def list_decisions(
         date_to=date_to,
         hide_ignored=hide_ignored,
         archived=archived,
+        feedback=feedback,
         limit=limit,
         offset=offset,
     )
@@ -59,6 +70,8 @@ async def list_decisions(
                 "destinations": e.destinations,
                 "exception_queued": e.exception_queued,
                 "extracted": e.extracted,
+                "feedback": e.feedback,
+                "feedback_note": e.feedback_note,
             }
             for e in entries
         ],
@@ -100,6 +113,8 @@ async def get_decision(item_id: str):
         "destinations": entry.destinations,
         "exception_queued": entry.exception_queued,
         "extracted": entry.extracted,
+        "feedback": entry.feedback,
+        "feedback_note": entry.feedback_note,
         "trace": {
             "tiers": [
                 {
@@ -139,6 +154,18 @@ async def get_decision(item_id: str):
     }
 
 
+@router.post("/decisions/{item_id}/feedback")
+async def submit_feedback(item_id: str, body: FeedbackRequest):
+    """Set user feedback on a decision (1=good, -1=bad)."""
+    if body.feedback not in (1, -1):
+        raise HTTPException(400, "feedback must be 1 or -1")
+    audit = get_audit_log()
+    ok = await audit.set_feedback(item_id, body.feedback, body.note)
+    if not ok:
+        raise HTTPException(404, "Decision not found")
+    return {"ok": True}
+
+
 @router.post("/decisions/archive")
 async def archive_decisions() -> dict[str, Any]:
     """Archive all unarchived decisions, move Pipelined emails to Archive, learn from dispositions."""
@@ -163,10 +190,11 @@ async def archive_decisions() -> dict[str, Any]:
         if isinstance(extracted, str):
             extracted = json.loads(extracted)
         sender = (extracted or {}).get("_email_from", "")
-        email_items.append({"item_id": item["item_id"], "message_id": message_id, "sender": sender})
+        feedback = item.get("feedback")
+        email_items.append({"item_id": item["item_id"], "message_id": message_id, "sender": sender, "feedback": feedback})
 
-    # Check IMAP dispositions and move remaining to Archive
-    email_summary = {"moved_to_archive": 0, "already_moved": [], "deleted": 0}
+    # Check IMAP dispositions and move remaining to Archive/Trash based on feedback
+    email_summary = {"moved_to_archive": 0, "already_moved": [], "deleted": 0, "trashed": 0, "gone": 0}
     suggestions: list[dict] = []
 
     if email_items:
@@ -177,9 +205,11 @@ async def archive_decisions() -> dict[str, Any]:
             if d["disposition"] == "archived":
                 email_summary["moved_to_archive"] += 1
             elif d["disposition"] == "deleted":
-                email_summary["deleted"] += 1
+                email_summary["trashed"] += 1
                 if d.get("sender"):
                     deleted_senders.append(d["sender"])
+            elif d["disposition"] == "gone":
+                email_summary["gone"] += 1
             elif d["disposition"].startswith("moved:"):
                 folder = d["disposition"].removeprefix("moved:")
                 email_summary["already_moved"].append({"item_id": d["item_id"], "folder": folder})
@@ -245,35 +275,39 @@ async def _check_and_archive_emails(
             skip_folders = {"Sent", "Drafts", "Junk", "Outbox"}
             search_folders = [f for f in all_folders if f not in skip_folders]
 
-            # Ensure Archive folder exists
-            try:
-                conn.select("Archive")
-                conn.close()
-            except imaplib.IMAP4.error:
-                conn.create("Archive")
-                conn.subscribe("Archive")
-                log.info("Created IMAP folder: Archive")
+            # Ensure Archive and Trash folders exist
+            for folder in ("Archive", "Trash"):
+                try:
+                    conn.select(folder)
+                    conn.close()
+                except imaplib.IMAP4.error:
+                    conn.create(folder)
+                    conn.subscribe(folder)
+                    log.info("Created IMAP folder: %s", folder)
 
             for item in email_items:
                 mid = item["message_id"]
                 item_id = item["item_id"]
                 sender = item.get("sender", "")
-                disposition = "deleted"  # default if not found anywhere
+                fb = item.get("feedback")
+                # Negative feedback → Trash, otherwise → Archive
+                target_folder = "Trash" if fb == -1 else "Archive"
+                disposition = "gone"  # default if not found anywhere
 
                 # Check Pipelined first
                 try:
                     conn.select("Pipelined")
                     _, data = conn.uid("SEARCH", None, "HEADER", "Message-ID", mid)
                     if data and data[0]:
-                        # Still in Pipelined — move to Archive
                         uids = data[0].split()
                         for uid in uids:
-                            typ, _ = conn.uid("MOVE", uid, "Archive")
+                            typ, _ = conn.uid("MOVE", uid, target_folder)
                             if typ != "OK":
-                                conn.uid("COPY", uid, "Archive")
+                                conn.uid("COPY", uid, target_folder)
                                 conn.uid("STORE", uid, "+FLAGS", "\\Deleted")
                         conn.expunge()
-                        results.append({"item_id": item_id, "disposition": "archived", "sender": sender})
+                        disp = "deleted" if fb == -1 else "archived"
+                        results.append({"item_id": item_id, "disposition": disp, "sender": sender})
                         continue
                 except imaplib.IMAP4.error:
                     pass

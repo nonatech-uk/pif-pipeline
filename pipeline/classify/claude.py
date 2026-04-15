@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import base64
+import io
 import json
 import logging
 from pathlib import Path
 
 import anthropic
+from PIL import Image
 
 from pipeline.classify.base import Classifier
 from pipeline.models import ClassifyResult, Envelope
@@ -18,6 +20,9 @@ _PROMPTS_DIR = Path(__file__).parent / "prompts"
 
 # Image MIME types Claude vision supports
 _VISION_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
+
+# Claude vision API limit is 5 MB for base64-encoded images
+_MAX_IMAGE_BYTES = 5 * 1024 * 1024
 
 # Labels that trigger structured extraction
 _EXTRACTABLE = {
@@ -95,13 +100,17 @@ class ClaudeClassifier(Classifier):
         label = parsed["label"]
         confidence = float(parsed.get("confidence", 0.8))
 
-        log.info("Claude classify: %s @ %.2f — %s", label, confidence, parsed.get("reasoning", ""))
+        reasoning = parsed.get("reasoning", "")
+        log.info("Claude classify: %s @ %.2f — %s", label, confidence, reasoning)
 
-        return ClassifyResult(
+        result = ClassifyResult(
             label=label,
             confidence=confidence,
             model=self.name,
         )
+        if reasoning:
+            result.extracted = {"_summary": reasoning}
+        return result
 
     async def _extract_step(self, envelope: Envelope, label: str) -> dict | None:
         """Extract structured fields for a classified document."""
@@ -132,6 +141,42 @@ class ClaudeClassifier(Classifier):
         return result
 
 
+def _downsize_image(raw: bytes, media_type: str) -> tuple[bytes, str]:
+    """Shrink an image until its base64 encoding fits under the API limit.
+
+    Progressively reduces JPEG quality, then scales down if still too large.
+    Returns (image_bytes, media_type) — output is always JPEG if resizing was needed.
+    """
+    # Already small enough?
+    if len(raw) * 4 // 3 <= _MAX_IMAGE_BYTES:
+        return raw, media_type
+
+    img = Image.open(io.BytesIO(raw))
+    img = img.convert("RGB")  # drop alpha for JPEG
+
+    # Try quality reduction first (95 → 60 in steps of 5)
+    for quality in range(95, 55, -5):
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=quality)
+        if len(buf.getvalue()) * 4 // 3 <= _MAX_IMAGE_BYTES:
+            log.info("Downsized image: quality=%d, %d→%d bytes", quality, len(raw), len(buf.getvalue()))
+            return buf.getvalue(), "image/jpeg"
+
+    # Quality alone wasn't enough — scale down in 20% steps
+    w, h = img.size
+    for scale in (0.8, 0.6, 0.4, 0.25):
+        resized = img.resize((int(w * scale), int(h * scale)), Image.LANCZOS)
+        buf = io.BytesIO()
+        resized.save(buf, format="JPEG", quality=70)
+        if len(buf.getvalue()) * 4 // 3 <= _MAX_IMAGE_BYTES:
+            log.info("Downsized image: scale=%.0f%% quality=70, %d→%d bytes", scale * 100, len(raw), len(buf.getvalue()))
+            return buf.getvalue(), "image/jpeg"
+
+    # Last resort — return smallest attempt
+    log.warning("Image still large after max downsize (%d bytes)", len(buf.getvalue()))
+    return buf.getvalue(), "image/jpeg"
+
+
 def _build_content(envelope: Envelope) -> list[dict] | None:
     """Build Claude message content — image or text depending on type."""
     if not envelope.raw_bytes:
@@ -141,11 +186,12 @@ def _build_content(envelope: Envelope) -> list[dict] | None:
 
     # Vision for supported image types
     if media_type in _VISION_TYPES:
-        b64 = base64.standard_b64encode(envelope.raw_bytes).decode()
+        img_bytes, img_type = _downsize_image(envelope.raw_bytes, media_type)
+        b64 = base64.standard_b64encode(img_bytes).decode()
         return [
             {
                 "type": "image",
-                "source": {"type": "base64", "media_type": media_type, "data": b64},
+                "source": {"type": "base64", "media_type": img_type, "data": b64},
             },
             {"type": "text", "text": "Classify this image."},
         ]

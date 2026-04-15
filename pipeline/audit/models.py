@@ -77,3 +77,7 @@ class AuditEntry(BaseModel):
 
     # Archive timestamp
     archived_at: datetime | None = None
+
+    # User feedback (1=good, -1=bad, None=unreviewed)
+    feedback: int | None = None
+    feedback_note: str | None = None

@@ -193,6 +193,23 @@ export function useIgnoreSenderFromItem() {
   })
 }
 
+export function useSubmitFeedback() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ itemId, feedback, note }: {
+      itemId: string
+      feedback: number
+      note?: string
+    }) => apiFetch(`/decisions/${itemId}/feedback`, {
+      method: 'POST',
+      body: JSON.stringify({ feedback, note }),
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['decisions'] })
+    },
+  })
+}
+
 export function useArchiveDecisions() {
   const qc = useQueryClient()
   return useMutation<ArchiveResult>({
