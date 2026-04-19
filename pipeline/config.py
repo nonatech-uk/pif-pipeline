@@ -82,6 +82,9 @@ class Settings(BaseSettings):
     immich_api_key: str = ""
     paperless_api_key: str = ""
 
+    # PIF (photo index seeding)
+    pif_db_url: str = ""
+
     # Mailcow
     mailcow_api_key: str = ""
 
@@ -127,6 +130,7 @@ def load_settings(config_path: Path | None = None) -> Settings:
         anthropic_api_key=os.environ.get("ANTHROPIC_API_KEY", ""),
         immich_api_key=os.environ.get("IMMICH_API_KEY", ""),
         paperless_api_key=os.environ.get("PAPERLESS_API_KEY", ""),
+        pif_db_url=os.environ.get("PIF_DATABASE_URL", ""),
         mailcow_api_key=os.environ.get("MAILCOW_API_KEY", ""),
         pushover_app_token=os.environ.get("PUSHOVER_APP_TOKEN", ""),
         pushover_user_key=os.environ.get("PUSHOVER_USER_KEY", ""),

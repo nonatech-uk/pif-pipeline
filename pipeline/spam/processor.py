@@ -273,7 +273,11 @@ class SpamProcessor:
             resp.raise_for_status()
             data = resp.json()
             if isinstance(data, list) and data and data[0].get("type") != "success":
-                raise RuntimeError(f"Mailcow API error: {data[0].get('msg')}")
+                msg = data[0].get("msg", "")
+                if msg == "policy_list_from_exists":
+                    log.info("Sender %s already on blacklist", sender_addr)
+                    return
+                raise RuntimeError(f"Mailcow API error: {msg}")
 
     def _imap_move_to_junk(self, message_id: str) -> None:
         """Prefix subject with [Processed] and move email from Auto/Spam to Junk."""

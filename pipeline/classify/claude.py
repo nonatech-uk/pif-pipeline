@@ -85,7 +85,7 @@ class ClaudeClassifier(Classifier):
             return None
 
         response = self._client.messages.create(
-            model="claude-sonnet-4-6-20250514",
+            model="claude-4-sonnet-20250514",
             max_tokens=256,
             system=self._classify_prompt,
             messages=[{"role": "user", "content": content}],

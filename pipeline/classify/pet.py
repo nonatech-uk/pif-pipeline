@@ -11,6 +11,7 @@ from pathlib import Path
 import anthropic
 
 from pipeline.classify.base import Classifier
+from pipeline.classify.claude import _downsize_image
 from pipeline.models import ClassifyResult, Envelope
 
 log = logging.getLogger(__name__)
@@ -96,11 +97,12 @@ class PetClassifier(Classifier):
                     "text": f"Reference photo of {pet_name.replace('_', ' ')}",
                 })
 
-        # Add query image
-        b64 = base64.standard_b64encode(envelope.raw_bytes).decode()
+        # Add query image — downsize if needed so base64-encoded payload fits API limit
+        query_bytes, query_media = _downsize_image(envelope.raw_bytes, envelope.media_type or "image/jpeg")
+        b64 = base64.standard_b64encode(query_bytes).decode()
         content.append({
             "type": "image",
-            "source": {"type": "base64", "media_type": envelope.media_type, "data": b64},
+            "source": {"type": "base64", "media_type": query_media, "data": b64},
         })
         content.append({"type": "text", "text": "Query image — identify which pets (if any) appear."})
 
@@ -108,7 +110,7 @@ class PetClassifier(Classifier):
         system_prompt = self._prompt_template.replace("{{pet_list}}", pet_list)
 
         response = self._client.messages.create(
-            model="claude-sonnet-4-6-20250514",
+            model="claude-4-sonnet-20250514",
             max_tokens=256,
             system=system_prompt,
             messages=[{"role": "user", "content": content}],

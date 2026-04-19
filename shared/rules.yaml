@@ -260,6 +260,18 @@ rules:
           people: [Og]
     on_match: continue
 
+  # --- Priority 83: Seed PIF photo search index (continue) ---
+  - id: p83-pif-index
+    name: Camera photo → PIF search index
+    priority: 83
+    conditions:
+      - type: source_type
+        value: camera
+    actions:
+      - handler: pif_index
+        params: {}
+    on_match: continue
+
   # --- Priority 84: Duplicates (stop, silently ignore) ---
   - id: p84-duplicate
     name: Duplicate → ignore

@@ -75,6 +75,16 @@ def register_all(settings: Settings) -> None:
     register(NotifyHandler())
     register(WineHandler())
 
+    if settings.pif_db_url and settings.immich_api_key:
+        from pipeline.actions.pif_index import PifIndexHandler
+        register(PifIndexHandler(
+            pif_db_url=settings.pif_db_url,
+            immich_url=settings.services.immich_url,
+            immich_api_key=settings.immich_api_key,
+        ))
+    else:
+        log.warning("PIF_DATABASE_URL or IMMICH_API_KEY not set — pif_index handler disabled")
+
     if settings.services.stuff_pipeline_secret:
         register(StuffHandler(
             base_url=settings.services.stuff_url,
