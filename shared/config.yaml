@@ -16,10 +16,23 @@ services:
   immich_url: http://immich-server:2283
   paperless_url: http://paperless:8000
   finance_url: http://host.containers.internal:8000
-  imap_host: mail.mees.st
-  imap_port: 993
-  imap_user: "${IMAP_USER}"
-  imap_password: "${IMAP_PASSWORD}"
+  imap_accounts:
+    - host: mail.mees.st
+      port: 993
+      user: "${IMAP_USER}"
+      password: "${IMAP_PASSWORD}"
+      hc_uuid: "${HC_PIPELINE_EMAIL}"
+      enable_spam: true
+      enable_unsubscribe: true
+      primary: true
+    - host: mail.mees.st
+      port: 993
+      user: "${IMAP_USER_THROTTLE}"
+      password: "${IMAP_PASSWORD_THROTTLE}"
+      hc_uuid: "${HC_PIPELINE_EMAIL_THROTTLE}"
+      enable_spam: true
+      enable_unsubscribe: false
+      primary: false
   location_url: http://host.containers.internal:8100
   location_secret: "${LOCATION_SECRET}"
   mailcow_url: https://mail.mees.st

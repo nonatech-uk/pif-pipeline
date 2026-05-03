@@ -253,29 +253,28 @@ async def _check_and_archive_emails(
 ) -> list[dict]:
     """Check where emails are now and move remaining Pipelined ones to Archive."""
     settings = get_settings()
-    if not settings.services.imap_user or not settings.services.imap_password:
+    accounts = settings.services.imap_accounts
+    if not accounts:
         return []
 
-    def _do_check() -> list[dict]:
-        conn = imaplib.IMAP4_SSL(settings.services.imap_host, settings.services.imap_port)
-        results = []
+    def _check_one_account(account, items: list[dict]) -> tuple[list[dict], list[dict]]:
+        """Try to resolve *items* against *account*. Returns (resolved, remaining)."""
+        resolved: list[dict] = []
+        remaining: list[dict] = list(items)
+        conn = imaplib.IMAP4_SSL(account.host, account.port)
         try:
-            conn.login(settings.services.imap_user, settings.services.imap_password)
+            conn.login(account.user, account.password)
 
-            # List all folders for searching
             _, folder_data = conn.list()
             all_folders = []
             for line in (folder_data or []):
                 if isinstance(line, bytes):
-                    # Parse IMAP LIST response: (flags) "delimiter" "name"
                     match = re.search(rb'"[^"]*"\s+"?([^"]+)"?$', line)
                     if match:
                         all_folders.append(match.group(1).decode("utf-8"))
-            # Filter out system folders we don't need to search
             skip_folders = {"Sent", "Drafts", "Junk", "Outbox"}
             search_folders = [f for f in all_folders if f not in skip_folders]
 
-            # Ensure Archive and Trash folders exist
             for folder in ("Archive", "Trash"):
                 try:
                     conn.select(folder)
@@ -283,18 +282,17 @@ async def _check_and_archive_emails(
                 except imaplib.IMAP4.error:
                     conn.create(folder)
                     conn.subscribe(folder)
-                    log.info("Created IMAP folder: %s", folder)
+                    log.info("Created IMAP folder %s on %s", folder, account.user)
 
-            for item in email_items:
+            still_remaining: list[dict] = []
+            for item in remaining:
                 mid = item["message_id"]
                 item_id = item["item_id"]
                 sender = item.get("sender", "")
                 fb = item.get("feedback")
-                # Negative feedback → Trash, otherwise → Archive
                 target_folder = "Trash" if fb == -1 else "Archive"
-                disposition = "gone"  # default if not found anywhere
+                found_here = False
 
-                # Check Pipelined first
                 try:
                     conn.select("Pipelined")
                     _, data = conn.uid("SEARCH", None, "HEADER", "Message-ID", mid)
@@ -307,12 +305,12 @@ async def _check_and_archive_emails(
                                 conn.uid("STORE", uid, "+FLAGS", "\\Deleted")
                         conn.expunge()
                         disp = "deleted" if fb == -1 else "archived"
-                        results.append({"item_id": item_id, "disposition": disp, "sender": sender})
+                        resolved.append({"item_id": item_id, "disposition": disp, "sender": sender})
+                        found_here = True
                         continue
                 except imaplib.IMAP4.error:
                     pass
 
-                # Not in Pipelined — search other folders
                 for folder in search_folders:
                     if folder == "Pipelined":
                         continue
@@ -320,24 +318,37 @@ async def _check_and_archive_emails(
                         conn.select(folder)
                         _, data = conn.uid("SEARCH", None, "HEADER", "Message-ID", mid)
                         if data and data[0]:
-                            if folder in ("Trash", "Deleted Items", "Deleted Messages"):
-                                disposition = "deleted"
-                            else:
-                                disposition = f"moved:{folder}"
+                            disp = "deleted" if folder in ("Trash", "Deleted Items", "Deleted Messages") else f"moved:{folder}"
+                            resolved.append({"item_id": item_id, "disposition": disp, "sender": sender})
+                            found_here = True
                             break
                     except imaplib.IMAP4.error:
                         continue
 
-                results.append({"item_id": item_id, "disposition": disposition, "sender": sender})
+                if not found_here:
+                    still_remaining.append(item)
+
+            return resolved, still_remaining
 
         except Exception:
-            log.exception("IMAP archive check failed")
+            log.exception("IMAP archive check failed for %s", account.user)
+            return resolved, remaining
         finally:
             try:
                 conn.logout()
             except Exception:
                 pass
 
+    def _do_check() -> list[dict]:
+        results: list[dict] = []
+        remaining = list(email_items)
+        for account in accounts:
+            if not remaining:
+                break
+            resolved, remaining = _check_one_account(account, remaining)
+            results.extend(resolved)
+        for item in remaining:
+            results.append({"item_id": item["item_id"], "disposition": "gone", "sender": item.get("sender", "")})
         return results
 
     loop = asyncio.get_running_loop()

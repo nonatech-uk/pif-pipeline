@@ -129,6 +129,7 @@ class EmailWatcher(SourceWatcher):
         password: str,
         folder: str = "INBOX",
         poll_interval: int = 60,
+        hc_uuid: str = "",
     ) -> None:
         self._host = host
         self._port = port
@@ -136,6 +137,7 @@ class EmailWatcher(SourceWatcher):
         self._password = password
         self._folder = folder
         self._poll_interval = poll_interval
+        self._hc_uuid = hc_uuid
         self._ignored_senders: set[str] = set()
 
     async def _ensure_table(self) -> None:
@@ -176,9 +178,7 @@ class EmailWatcher(SourceWatcher):
         )
 
         import httpx
-        import os
-        hc_uuid = os.environ.get("HC_PIPELINE_EMAIL", "")
-        hc_url = f"https://hc.mees.st/ping/{hc_uuid}" if hc_uuid else ""
+        hc_url = f"https://hc.mees.st/ping/{self._hc_uuid}" if self._hc_uuid else ""
 
         while True:
             try:
@@ -259,7 +259,10 @@ class EmailWatcher(SourceWatcher):
         """Parse a raw email, yielding an Envelope per attachment or the body."""
         msg = emaillib.message_from_bytes(raw_email, policy=emaillib.policy.default)
         from_addr = _decode_header(msg.get("From", ""))
-        to_addr = _decode_header(msg.get("To", ""))
+        # Prefer Delivered-To (canonical mailbox) over To (may be an alias).
+        # email_move uses this to pick the IMAP account, so it must match the
+        # account user — alias addresses break cross-box MOVE.
+        to_addr = _decode_header(msg.get("Delivered-To", "") or msg.get("To", "")) or self._user
         subject = _decode_header(msg.get("Subject", ""))
         log.info("Email from %s: %s", from_addr, subject)
 

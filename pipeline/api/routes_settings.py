@@ -130,17 +130,18 @@ async def ignore_sender_from_item(body: IgnoreFromItemRequest) -> dict[str, Any]
 
 
 async def _lookup_sender_via_imap(message_id: str) -> str | None:
-    """Fetch the From header of an email by Message-ID from IMAP."""
+    """Fetch the From header of an email by Message-ID. Tries each configured IMAP account."""
     import asyncio
 
     settings = get_settings()
-    if not settings.services.imap_user or not settings.services.imap_password:
+    accounts = settings.services.imap_accounts
+    if not accounts:
         return None
 
-    def _fetch() -> str | None:
-        conn = imaplib.IMAP4_SSL(settings.services.imap_host, settings.services.imap_port)
+    def _fetch_from(account) -> str | None:
+        conn = imaplib.IMAP4_SSL(account.host, account.port)
         try:
-            conn.login(settings.services.imap_user, settings.services.imap_password)
+            conn.login(account.user, account.password)
             for folder in ("Pipelined", "INBOX"):
                 conn.select(folder)
                 _, data = conn.uid("SEARCH", None, "HEADER", "Message-ID", message_id)
@@ -151,11 +152,10 @@ async def _lookup_sender_via_imap(message_id: str) -> str | None:
                         header = parts[0][1]
                         if isinstance(header, bytes):
                             header = header.decode("utf-8", errors="replace")
-                        # Parse "From: Name <email>\r\n"
                         return header.replace("From:", "").strip().strip("\r\n")
             return None
         except Exception:
-            log.exception("IMAP sender lookup failed for %s", message_id)
+            log.exception("IMAP sender lookup failed for %s on %s", message_id, account.user)
             return None
         finally:
             try:
@@ -163,29 +163,39 @@ async def _lookup_sender_via_imap(message_id: str) -> str | None:
             except Exception:
                 pass
 
+    def _fetch() -> str | None:
+        for account in accounts:
+            result = _fetch_from(account)
+            if result:
+                return result
+        return None
+
     loop = asyncio.get_running_loop()
     return await loop.run_in_executor(None, _fetch)
 
 
 async def _move_email_back(message_id: str) -> bool:
-    """Move an email from Pipelined back to INBOX, stripping any (Duplicate) prefix."""
+    """Move an email from Pipelined back to INBOX, stripping any (Duplicate) prefix.
+
+    Tries each configured IMAP account; returns True on the first that succeeds.
+    """
     import asyncio
     import email as emaillib
     import email.policy
     import time as _time
 
     settings = get_settings()
-    if not settings.services.imap_user or not settings.services.imap_password:
+    accounts = settings.services.imap_accounts
+    if not accounts:
         return False
 
-    def _do_move() -> bool:
-        conn = imaplib.IMAP4_SSL(settings.services.imap_host, settings.services.imap_port)
+    def _do_move_for(account) -> bool:
+        conn = imaplib.IMAP4_SSL(account.host, account.port)
         try:
-            conn.login(settings.services.imap_user, settings.services.imap_password)
+            conn.login(account.user, account.password)
             conn.select("Pipelined")
             _, data = conn.uid("SEARCH", None, "HEADER", "Message-ID", message_id)
             if not data or not data[0]:
-                log.info("Email %s not found in Pipelined", message_id)
                 return False
 
             uids = data[0].split()
@@ -196,14 +206,12 @@ async def _move_email_back(message_id: str) -> bool:
                 raw_msg = raw_data[0][1]
                 msg = emaillib.message_from_bytes(raw_msg, policy=emaillib.policy.compat32)
 
-                # Strip (Duplicate) prefix from subject
                 old_subject = msg.get("Subject", "")
                 cleaned = re.sub(r"^\(Duplicate\)\s*", "", old_subject)
                 if cleaned != old_subject:
                     del msg["Subject"]
                     msg["Subject"] = cleaned
 
-                # Parse flags and date
                 meta = raw_data[0][0].decode() if isinstance(raw_data[0][0], bytes) else str(raw_data[0][0])
                 flags_match = re.search(r"FLAGS \(([^)]*)\)", meta)
                 flags = flags_match.group(1) if flags_match else ""
@@ -215,16 +223,23 @@ async def _move_email_back(message_id: str) -> bool:
                 conn.uid("STORE", uid, "+FLAGS", "\\Deleted")
 
             conn.expunge()
-            log.info("Moved email %s back to INBOX", message_id)
+            log.info("Moved email %s back to INBOX on %s", message_id, account.user)
             return True
         except Exception:
-            log.exception("Failed to move email %s back to INBOX", message_id)
+            log.exception("Failed to move email %s back to INBOX on %s", message_id, account.user)
             return False
         finally:
             try:
                 conn.logout()
             except Exception:
                 pass
+
+    def _do_move() -> bool:
+        for account in accounts:
+            if _do_move_for(account):
+                return True
+        log.info("Email %s not found in Pipelined on any account", message_id)
+        return False
 
     loop = asyncio.get_running_loop()
     return await loop.run_in_executor(None, _do_move)

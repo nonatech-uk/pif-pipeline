@@ -216,17 +216,28 @@ async def main() -> None:
     settings = load_settings()
     log.info("Pipeline starting — project root: %s", settings.project_root)
     log.info("Tier ceiling: %s", settings.tiers.ceiling)
+    log.info("IMAP accounts configured: %d", len(settings.services.imap_accounts))
 
-    # Initialise notifications
-    notifier = Notifier(
-        pushover_app_token=settings.pushover_app_token,
-        pushover_user_key=settings.pushover_user_key,
-        smtp_host=settings.services.imap_host,
-        smtp_port=465,
-        smtp_user=settings.services.imap_user,
-        smtp_password=settings.services.imap_password,
-        email_to=settings.services.imap_user,
+    # Initialise notifications — uses primary account for outbound SMTP
+    primary_account = next(
+        (a for a in settings.services.imap_accounts if a.primary),
+        None,
     )
+    if primary_account:
+        notifier = Notifier(
+            pushover_app_token=settings.pushover_app_token,
+            pushover_user_key=settings.pushover_user_key,
+            smtp_host=primary_account.host,
+            smtp_port=465,
+            smtp_user=primary_account.user,
+            smtp_password=primary_account.password,
+            email_to=primary_account.user,
+        )
+    else:
+        notifier = Notifier(
+            pushover_app_token=settings.pushover_app_token,
+            pushover_user_key=settings.pushover_user_key,
+        )
     notify_mod.configure(notifier)
     log.info("Notifications: pushover=%s email=%s", notifier.pushover_enabled, notifier.email_enabled)
 
@@ -304,44 +315,45 @@ async def main() -> None:
     else:
         log.warning("IMMICH_API_KEY not set — Immich watcher disabled")
 
-    if settings.services.imap_user and settings.services.imap_password:
-        watchers.append(("email", EmailWatcher(
-            host=settings.services.imap_host,
-            port=settings.services.imap_port,
-            user=settings.services.imap_user,
-            password=settings.services.imap_password,
+    unsub_processors: list = []
+    spam_processors: list = []
+
+    if not settings.services.imap_accounts:
+        log.warning("No IMAP accounts configured — email watchers disabled")
+
+    for acct in settings.services.imap_accounts:
+        watchers.append((f"email:{acct.user}", EmailWatcher(
+            host=acct.host,
+            port=acct.port,
+            user=acct.user,
+            password=acct.password,
+            hc_uuid=acct.hc_uuid,
         )))
-    else:
-        log.warning("IMAP credentials not set — Email watcher disabled")
 
-    # Unsubscribe processor (standalone task, not a watcher)
-    unsub_processor = None
-    if settings.services.imap_user and settings.services.imap_password and settings.anthropic_api_key:
-        from pipeline.unsubscribe.processor import UnsubscribeProcessor
-        unsub_processor = UnsubscribeProcessor(
-            host=settings.services.imap_host,
-            port=settings.services.imap_port,
-            user=settings.services.imap_user,
-            password=settings.services.imap_password,
-            anthropic_api_key=settings.anthropic_api_key,
-        )
-    else:
-        log.warning("IMAP or Anthropic credentials not set — Unsubscribe processor disabled")
+        if acct.enable_unsubscribe and settings.anthropic_api_key:
+            from pipeline.unsubscribe.processor import UnsubscribeProcessor
+            unsub_processors.append((f"unsubscribe:{acct.user}", UnsubscribeProcessor(
+                host=acct.host,
+                port=acct.port,
+                user=acct.user,
+                password=acct.password,
+                anthropic_api_key=settings.anthropic_api_key,
+            )))
+        elif acct.enable_unsubscribe:
+            log.warning("Anthropic key missing — unsubscribe processor disabled for %s", acct.user)
 
-    # Spam blacklist processor (standalone task, not a watcher)
-    spam_processor = None
-    if settings.services.imap_user and settings.services.imap_password and settings.mailcow_api_key:
-        from pipeline.spam.processor import SpamProcessor
-        spam_processor = SpamProcessor(
-            host=settings.services.imap_host,
-            port=settings.services.imap_port,
-            user=settings.services.imap_user,
-            password=settings.services.imap_password,
-            mailcow_url=settings.services.mailcow_url,
-            mailcow_api_key=settings.mailcow_api_key,
-        )
-    else:
-        log.warning("IMAP or Mailcow credentials not set — Spam processor disabled")
+        if acct.enable_spam and settings.mailcow_api_key:
+            from pipeline.spam.processor import SpamProcessor
+            spam_processors.append((f"spam:{acct.user}", SpamProcessor(
+                host=acct.host,
+                port=acct.port,
+                user=acct.user,
+                password=acct.password,
+                mailcow_url=settings.services.mailcow_url,
+                mailcow_api_key=settings.mailcow_api_key,
+            )))
+        elif acct.enable_spam:
+            log.warning("Mailcow key missing — spam processor disabled for %s", acct.user)
 
     # Register with central dashboard
     async def _register_with_dashboard():
@@ -374,10 +386,10 @@ async def main() -> None:
     tasks.append(asyncio.create_task(_register_with_dashboard(), name="dashboard-register"))
     for name, watcher in watchers:
         tasks.append(asyncio.create_task(run_watcher(watcher, name), name=name))
-    if unsub_processor:
-        tasks.append(asyncio.create_task(unsub_processor.run(), name="unsubscribe"))
-    if spam_processor:
-        tasks.append(asyncio.create_task(spam_processor.run(), name="spam-blacklist"))
+    for name, proc in unsub_processors:
+        tasks.append(asyncio.create_task(proc.run(), name=name))
+    for name, proc in spam_processors:
+        tasks.append(asyncio.create_task(proc.run(), name=name))
 
     log.info("Pipeline running — %d watchers, tier ceiling=%s", len(watchers), settings.tiers.ceiling)
 

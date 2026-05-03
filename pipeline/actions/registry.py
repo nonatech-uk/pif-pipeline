@@ -109,11 +109,6 @@ def register_all(settings: Settings) -> None:
     else:
         log.warning("TRIPS_PIPELINE_SECRET not set — expense handler disabled")
 
-    if settings.services.imap_user and settings.services.imap_password:
+    if settings.services.imap_accounts:
         from pipeline.actions.email_move import EmailMoveHandler
-        register(EmailMoveHandler(
-            host=settings.services.imap_host,
-            port=settings.services.imap_port,
-            user=settings.services.imap_user,
-            password=settings.services.imap_password,
-        ))
+        register(EmailMoveHandler(settings))

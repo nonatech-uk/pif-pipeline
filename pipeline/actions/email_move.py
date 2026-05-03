@@ -7,6 +7,7 @@ import logging
 from typing import Any
 
 from pipeline.actions.base import ActionHandler
+from pipeline.config import Settings
 from pipeline.models import ActionResult, Envelope
 
 log = logging.getLogger(__name__)
@@ -17,11 +18,8 @@ class EmailMoveHandler(ActionHandler):
 
     name = "email_move"
 
-    def __init__(self, host: str, port: int, user: str, password: str) -> None:
-        self._host = host
-        self._port = port
-        self._user = user
-        self._password = password
+    def __init__(self, settings: Settings) -> None:
+        self._settings = settings
 
     async def execute(self, envelope: Envelope, params: dict[str, Any]) -> ActionResult:
         if envelope.source_type != "email":
@@ -40,11 +38,15 @@ class EmailMoveHandler(ActionHandler):
         if not message_id:
             return ActionResult(ok=False, destination=self.name, reason="No Message-ID in source path")
 
+        account = self._settings.imap_account_for(envelope.source_email_to)
+        if not account:
+            return ActionResult(ok=False, destination=self.name, reason="No IMAP account configured")
+
         try:
             import asyncio
             loop = asyncio.get_running_loop()
             await loop.run_in_executor(
-                None, self._move, source_folder, message_id, folder, subject_prefix,
+                None, self._move, account, source_folder, message_id, folder, subject_prefix,
             )
             # Send pushover notification on successful move
             from pipeline import notify as notify_mod
@@ -62,18 +64,18 @@ class EmailMoveHandler(ActionHandler):
             return ActionResult(ok=False, destination=self.name, reason=str(e))
 
     def _move(
-        self, source_folder: str, message_id: str, dest_folder: str,
+        self, account, source_folder: str, message_id: str, dest_folder: str,
         subject_prefix: str | None = None,
     ) -> None:
-        """Move email by Message-ID. Runs in a thread.
+        """Move email by Message-ID on *account*. Runs in a thread.
 
         If *subject_prefix* is set, the subject is modified by fetching the
         full message, prepending the prefix, appending the altered copy to
         *dest_folder*, and deleting the original (IMAP has no in-place edit).
         """
-        conn = imaplib.IMAP4_SSL(self._host, self._port)
+        conn = imaplib.IMAP4_SSL(account.host, account.port)
         try:
-            conn.login(self._user, self._password)
+            conn.login(account.user, account.password)
 
             # Ensure destination folder exists
             try:

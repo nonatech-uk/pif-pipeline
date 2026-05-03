@@ -35,16 +35,24 @@ class PathsConfig(BaseSettings):
     pets_dir: str = "shared/pets"
 
 
+class ImapAccount(BaseSettings):
+    host: str = "mail.mees.st"
+    port: int = 993
+    user: str = ""
+    password: str = ""
+    hc_uuid: str = ""
+    enable_spam: bool = True
+    enable_unsubscribe: bool = True
+    primary: bool = False
+
+
 class ServicesConfig(BaseSettings):
     immich_url: str = "http://127.0.0.1:2283"
     paperless_url: str = "http://paperless:8000"
     finance_url: str = "http://127.0.0.1:8000"
     stuff_url: str = "http://stuff:8300"
     stuff_pipeline_secret: str = ""
-    imap_host: str = "mail.mees.st"
-    imap_port: int = 993
-    imap_user: str = ""
-    imap_password: str = ""
+    imap_accounts: list[ImapAccount] = Field(default_factory=list)
     location_url: str = "http://host.containers.internal:8100"
     location_secret: str = ""
     trips_url: str = "http://trips:8400"
@@ -96,6 +104,23 @@ class Settings(BaseSettings):
         """Resolve a config-relative path to an absolute path."""
         return self.project_root / relative
 
+    def imap_account_for(self, address: str | None) -> "ImapAccount | None":
+        """Find the configured IMAP account whose user matches *address*.
+
+        *address* may be a bare address ("stu@x.y") or a full From/To header
+        ("Stu <stu@x.y>"). Falls back to the primary account if no match,
+        or None if no accounts are configured.
+        """
+        accounts = self.services.imap_accounts
+        if not accounts:
+            return None
+        if address:
+            addr = address.lower()
+            for acct in accounts:
+                if acct.user and acct.user.lower() in addr:
+                    return acct
+        return next((a for a in accounts if a.primary), accounts[0])
+
     model_config = {"env_prefix": "PIPELINE_"}
 
 
@@ -108,7 +133,16 @@ def load_settings(config_path: Path | None = None) -> Settings:
     raw = _load_yaml(config_path) if config_path.exists() else {}
 
     paths = PathsConfig(**(raw.get("paths", {})))
-    services = ServicesConfig(**(raw.get("services", {})))
+
+    raw_services = dict(raw.get("services", {}))
+    raw_accounts = raw_services.pop("imap_accounts", [])
+    services = ServicesConfig(**raw_services)
+    accounts = [ImapAccount(**a) for a in raw_accounts]
+    accounts = [a for a in accounts if a.user and a.password]
+    if accounts and not any(a.primary for a in accounts):
+        accounts[0].primary = True
+    services.imap_accounts = accounts
+
     classifier_cfg = ClassifierConfig(**(raw.get("classifier", {})))
     tiers = TiersConfig(**(raw.get("tiers", {})))
 
