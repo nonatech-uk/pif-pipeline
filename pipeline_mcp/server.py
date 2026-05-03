@@ -41,7 +41,7 @@ async def pipeline_status() -> str:
     )
 
 
-@mcp.tool
+@mcp.tool(name="pipeline_list_exceptions")
 async def list_exceptions(status: str = "pending", limit: int = 20) -> str:
     """List items in the exception queue that need manual review.
 
@@ -61,7 +61,7 @@ async def list_exceptions(status: str = "pending", limit: int = 20) -> str:
     return "\n".join(lines)
 
 
-@mcp.tool
+@mcp.tool(name="pipeline_list_decisions")
 async def list_decisions(
     source: str = "all",
     label: str | None = None,
@@ -110,7 +110,7 @@ async def list_decisions(
     return "\n".join(lines)
 
 
-@mcp.tool
+@mcp.tool(name="pipeline_explain_decision")
 async def explain_decision(item_id: str) -> str:
     """Full audit trace for a single item — shows every tier, rule, and action evaluated.
 
@@ -181,7 +181,7 @@ async def pipeline_stats() -> str:
     return "\n".join(lines)
 
 
-@mcp.tool
+@mcp.tool(name="pipeline_list_corrections")
 async def list_corrections(status: str = "pending", limit: int = 20) -> str:
     """List corrections from Paperless feedback — proposed changes to thresholds, tags, or rules.
 
@@ -206,7 +206,7 @@ async def list_corrections(status: str = "pending", limit: int = 20) -> str:
 # ── Triage tools (write) ────────────────────────────────────────────────────
 
 
-@mcp.tool
+@mcp.tool(name="pipeline_triage_exception")
 async def triage_exception(item_id: str, action: str, destination: str | None = None, reason: str | None = None) -> str:
     """Triage an exception queue item.
 
@@ -226,7 +226,7 @@ async def triage_exception(item_id: str, action: str, destination: str | None = 
     return f"Triaged {item_id}: {action}" + (f" → {destination}" if destination else "")
 
 
-@mcp.tool
+@mcp.tool(name="pipeline_accept_correction")
 async def accept_correction(correction_id: int) -> str:
     """Accept a proposed correction from Paperless feedback.
 
@@ -239,7 +239,7 @@ async def accept_correction(correction_id: int) -> str:
     return f"Correction #{correction_id} accepted."
 
 
-@mcp.tool
+@mcp.tool(name="pipeline_bulk_triage")
 async def bulk_triage(action: str, reason: str | None = None, limit: int = 50) -> str:
     """Triage all pending exceptions with the same action.
 
@@ -266,7 +266,7 @@ async def bulk_triage(action: str, reason: str | None = None, limit: int = 50) -
 # ── Control tools (write) ────────────────────────────────────────────────────
 
 
-@mcp.tool
+@mcp.tool(name="pipeline_trigger_retrospective")
 async def trigger_retrospective(
     mode: str = "classify",
     tier_ceiling: str = "clip",
@@ -297,7 +297,7 @@ async def trigger_retrospective(
     return f"Retrospective started: run_id={d['run_id']}"
 
 
-@mcp.tool
+@mcp.tool(name="pipeline_run_status")
 async def run_status(run_id: str) -> str:
     """Check the status of a retrospective run.
 
@@ -327,7 +327,7 @@ async def run_status(run_id: str) -> str:
     return "\n".join(lines)
 
 
-@mcp.tool
+@mcp.tool(name="pipeline_reload_rules")
 async def reload_rules() -> str:
     """Hot-reload the rules YAML without restarting the pipeline service."""
     # Send SIGHUP to the pipeline process
@@ -339,7 +339,7 @@ async def reload_rules() -> str:
         return "Could not send SIGHUP — pipeline process not found."
 
 
-@mcp.tool
+@mcp.tool(name="pipeline_set_tier_threshold")
 async def set_tier_threshold(tier: str, label: str, threshold: float) -> str:
     """Adjust a classifier confidence threshold live.
 
@@ -357,7 +357,7 @@ async def set_tier_threshold(tier: str, label: str, threshold: float) -> str:
 # ── Introspect tools (read) ──────────────────────────────────────────────────
 
 
-@mcp.tool
+@mcp.tool(name="pipeline_test_item_against_rules")
 async def test_item_against_rules(
     label: str,
     confidence: float = 0.9,
@@ -403,7 +403,7 @@ async def test_item_against_rules(
     return "\n".join(lines)
 
 
-@mcp.tool
+@mcp.tool(name="pipeline_suggest_rule")
 async def suggest_rule(description: str) -> str:
     """Given a description of a document type or scenario, propose a YAML rule definition.
 
