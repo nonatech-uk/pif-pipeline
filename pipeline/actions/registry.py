@@ -66,8 +66,13 @@ def register_all(settings: Settings) -> None:
             base_url=settings.services.location_url,
             secret=settings.services.location_secret,
         ))
+        from pipeline.actions.train_journey import TrainJourneyHandler
+        register(TrainJourneyHandler(
+            base_url=settings.services.location_url,
+            secret=settings.services.location_secret,
+        ))
     else:
-        log.warning("LOCATION_SECRET not set — location handler disabled")
+        log.warning("LOCATION_SECRET not set — location and train_journey handlers disabled")
     from pipeline.actions.wine import WineHandler
     from pipeline.actions.stuff import StuffHandler, StuffBookHandler
 

@@ -1,26 +1,41 @@
 # CLIP zero-shot classification labels with per-label confidence thresholds.
 # The classifier returns the top label only if its score >= threshold.
+# escalate_above: top score below this triggers Claude verification, even if above threshold.
+# Document classes use a high escalate_above (0.97) because CLIP softmax always picks
+# *something* — random photos can score 0.85+ on a doc class they don't belong to.
 
 labels:
   receipt:
     threshold: 0.75
+    escalate_above: 0.97
   invoice:
     threshold: 0.75
+    escalate_above: 0.97
   boarding_pass:
     threshold: 0.75
+    escalate_above: 0.97
+  train_ticket:
+    threshold: 0.75
+    escalate_above: 0.97
   wine_label:
     threshold: 0.75
+    escalate_above: 0.97
   bank_statement:
     threshold: 0.75
+    escalate_above: 0.97
   insurance_policy:
     threshold: 0.75
+    escalate_above: 0.97
   tax_document:
     threshold: 0.75
+    escalate_above: 0.97
   pet_photo:
     threshold: 0.70
   landscape:
     threshold: 0.70
   product_barcode:
     threshold: 0.75
+    escalate_above: 0.97
   document:
     threshold: 0.75
+    escalate_above: 0.97

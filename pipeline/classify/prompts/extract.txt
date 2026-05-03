@@ -25,6 +25,28 @@ tax_document:
 wine_label:
   wine_name, producer, region, country, vintage, grape_variety, abv
 
+train_ticket:
+  operator (e.g. "South Western Railway")
+  reference (booking reference number)
+  amount (total paid)
+  currency (e.g. "GBP")
+  date (booking/issue date if no journey date — fallback only)
+  merchant (operator name, mirror of operator — used by finance handler)
+  journeys (list of {
+    date (YYYY-MM-DD of travel),
+    time (HH:MM departure, 24h),
+    from_station,
+    from_code (CRS code if shown, e.g. "CLA"),
+    to_station,
+    to_code (CRS code if shown),
+    ticket_type (e.g. "Off-Peak Day Return"),
+    ticket_class (e.g. "Standard" or "First"),
+    direction ("outward" or "return"),
+    via,
+    price (if leg price shown, otherwise null — total goes in top-level amount)
+  })
+  Note: a return ticket produces TWO journeys (outward + return). For multi-leg outward journeys (e.g. with a change), use the FIRST leg's depart station/time as from, the LAST leg's arrive station as to — combine via via="ChangeStation".
+
 Additionally, for ALL labels:
 - "date" fields must be in ISO 8601 format: YYYY-MM-DD
 - "tags": suggest 2-5 short keyword tags relevant for personal filing (e.g. "Property", "Travel", "Insurance", "Tax", "Wine"). Include specific identifiers where useful (e.g. a property name, airline, bank name).
