@@ -79,7 +79,9 @@ class PetClassifier(Classifier):
         """Run few-shot pet identification."""
         content: list[dict] = []
 
-        # Add reference images for each pet
+        # Add reference images for each pet. Downsize each one so an
+        # oversized reference (e.g. an unprocessed phone photo) can't
+        # blow the per-image or per-request size limit.
         for pet_name in self._pet_names:
             pet_dir = self._pets_dir / pet_name
             images = sorted(pet_dir.glob("*"))[:_MAX_REF_IMAGES]
@@ -87,10 +89,11 @@ class PetClassifier(Classifier):
                 mime = mimetypes.guess_type(str(img_path))[0]
                 if not mime or not mime.startswith("image/"):
                     continue
-                b64 = base64.standard_b64encode(img_path.read_bytes()).decode()
+                ref_bytes, ref_mime = _downsize_image(img_path.read_bytes(), mime)
+                b64 = base64.standard_b64encode(ref_bytes).decode()
                 content.append({
                     "type": "image",
-                    "source": {"type": "base64", "media_type": mime, "data": b64},
+                    "source": {"type": "base64", "media_type": ref_mime, "data": b64},
                 })
                 content.append({
                     "type": "text",

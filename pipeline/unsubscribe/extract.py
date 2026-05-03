@@ -72,7 +72,8 @@ def _parse_list_unsubscribe_header(msg: Message) -> str | None:
         return None
 
     # Header format: <url1>, <url2>, ...
-    urls = re.findall(r"<(https?://[^>]+)>", raw)
+    # Strip any whitespace (including folded CR/LF from long headers) from each URL.
+    urls = [re.sub(r"\s+", "", u) for u in re.findall(r"<(https?://[^>]+)>", raw)]
     # Prefer https, skip mailto
     for url in urls:
         if url.startswith("https://"):
@@ -93,7 +94,7 @@ def _find_body_unsubscribe_link(msg: Message) -> str | None:
     soup = BeautifulSoup(html, "html.parser")
 
     for tag in soup.find_all("a", href=True):
-        href = tag["href"]
+        href = re.sub(r"\s+", "", tag["href"])
         text = tag.get_text(strip=True).lower()
 
         # Match on link text or href containing "unsubscribe"

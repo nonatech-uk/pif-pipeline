@@ -37,6 +37,11 @@ logging.basicConfig(
 )
 log = logging.getLogger("pipeline")
 
+# WeasyPrint parses whatever CSS arrives in inbound email HTML — sender-controlled
+# junk (vendor prefixes, unknown media queries) fires unactionable warnings. Silence.
+logging.getLogger("weasyprint").setLevel(logging.ERROR)
+logging.getLogger("fontTools").setLevel(logging.ERROR)
+
 # Module-level references set during startup
 _tier_runner: TierRunner | None = None
 _rules_engine: RulesEngine | None = None

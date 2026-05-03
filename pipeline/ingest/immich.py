@@ -76,13 +76,21 @@ class ImmichWatcher(SourceWatcher):
                     async with httpx.AsyncClient(timeout=10) as hc:
                         await hc.get(hc_url)
             except Exception:
-                log.exception("Immich poll error, retrying in %ds", self._poll_interval)
-                if hc_url:
-                    try:
+                log.warning("Immich poll error, retrying once", exc_info=True)
+                try:
+                    for envelope in await self._poll():
+                        yield envelope
+                    if hc_url:
                         async with httpx.AsyncClient(timeout=10) as hc:
-                            await hc.get(f"{hc_url}/fail")
-                    except Exception:
-                        pass
+                            await hc.get(hc_url)
+                except Exception:
+                    log.exception("Immich poll failed twice")
+                    if hc_url:
+                        try:
+                            async with httpx.AsyncClient(timeout=10) as hc:
+                                await hc.get(f"{hc_url}/fail")
+                        except Exception:
+                            pass
 
             await asyncio.sleep(self._poll_interval)
 
@@ -90,7 +98,7 @@ class ImmichWatcher(SourceWatcher):
         """Fetch recent assets from Immich and process new ones."""
         envelopes: list[Envelope] = []
 
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with httpx.AsyncClient(timeout=90) as client:
             # Search for recent assets (last 24h to catch up after restarts)
             resp = await client.post(
                 f"{self._base_url}/api/search/metadata",
